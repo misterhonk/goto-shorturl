@@ -3,7 +3,7 @@
 Options -Indexes
 
 # Sensible Dateien niemals direkt ausliefern
-<FilesMatch "\.(json|md)$">
+<FilesMatch "\.(json|md|bak|tmp)$">
     Require all denied
 </FilesMatch>
 <FilesMatch "^\.">

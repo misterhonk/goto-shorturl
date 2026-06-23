@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PHP-Syntax prüfen
+        run: |
+          for f in $(find . -name '*.php'); do
+            php -l "$f"
+          done
+
+      - name: JavaScript-Syntax prüfen
+        run: |
+          node --check qr.js
+          node --check app.js
+
+      - name: QR-Encoder-Tests
+        run: node tests/qr.test.js

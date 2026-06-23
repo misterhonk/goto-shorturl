@@ -14,8 +14,14 @@ declare(strict_types=1);
 $cfg     = @include __DIR__ . '/config.php';
 $dataDir = rtrim((string) ((is_array($cfg) ? ($cfg['data_dir'] ?? null) : null) ?? __DIR__), '/');
 
-$raw = @file_get_contents($dataDir . '/urls.json');
-$raw = $raw ? json_decode($raw, true) : [];
+@ini_set('log_errors', '1');
+@ini_set('error_log', $dataDir . '/.ht_error.log');
+
+$file = $dataDir . '/urls.json';
+$raw  = json_decode((string) @file_get_contents($file), true);
+if (!is_array($raw) && is_file($file . '.bak')) {          // Fallback bei beschädigter Datei
+    $raw = json_decode((string) @file_get_contents($file . '.bak'), true);
+}
 if (!is_array($raw)) $raw = [];
 
 $links = (isset($raw['links']) && is_array($raw['links'])) ? $raw['links'] : $raw;

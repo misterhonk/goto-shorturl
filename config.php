@@ -18,6 +18,10 @@ return [
     'max_attempts'    => 5,      // Login-Fehlversuche bis zur Sperre
     'lockout_seconds' => 900,    // Dauer der Sperre nach zu vielen Versuchen
 
+    // Favicons der Zielseiten in der Liste anzeigen. true lädt sie von
+    // icons.duckduckgo.com (ein externer Abruf je Domain). false = aus.
+    'favicons'        => true,
+
     // Speicherort der Datendateien (urls.json, clicks.json, .ht_auth.json …).
     // Standard: dieser Ordner. SICHERER ist ein Ordner OBERHALB des Web-Roots,
     // dann sind die Daten selbst ohne Apache/.htaccess nicht abrufbar, z.B.:

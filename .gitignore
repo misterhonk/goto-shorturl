@@ -4,6 +4,9 @@ clicks.json
 .ht_attempts.json
 .ht_tokens.json
 .ht_auth.json
+.ht_error.log
+*.bak
+*.tmp
 
 # lokale Test-/Build-Artefakte
 test.env
