@@ -1,0 +1,46 @@
+# GOTO – URL-Weiterleitung & Admin
+
+Options -Indexes
+
+# Sensible Dateien niemals direkt ausliefern
+<FilesMatch "\.(json|md)$">
+    Require all denied
+</FilesMatch>
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+<Files "config.php">
+    Require all denied
+</Files>
+
+# =====================================================================
+#  Unbekannte Pfade (= Kürzel) an index.php weiterreichen.
+#  Es genügt EINE der beiden Varianten – A ist Standard und läuft auf
+#  den meisten Hostern inkl. IONOS. Falls eine Variante nicht geht,
+#  diese auskommentieren und die andere aktivieren.
+# =====================================================================
+
+# --- Variante A: FallbackResource (Standard, u. a. IONOS) ------------
+#   Pfad an den Ordner anpassen:
+#     Unterordner /goto/     ->  /goto/index.php
+#     direkt auf der Domain  ->  /index.php
+<IfModule mod_dir.c>
+    FallbackResource /goto/index.php
+</IfModule>
+
+# --- Variante B: mod_rewrite (Alternative, ohne festen Pfad) --------
+#   Variante A oben auskommentieren und das hier einkommentieren:
+#<IfModule mod_rewrite.c>
+#    RewriteEngine On
+#    # Auf manchen Hostern im Unterordner nötig (an Ordner anpassen):
+#    # RewriteBase /goto/
+#    RewriteCond %{REQUEST_FILENAME} !-f
+#    RewriteCond %{REQUEST_FILENAME} !-d
+#    RewriteRule ^(.+)$ index.php?slug=$1 [QSA,L]
+#</IfModule>
+
+# Schöne Admin-URL: /admin statt /admin.php (greift, wenn mod_rewrite da ist)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^admin/?$ admin.php [L]
+</IfModule>

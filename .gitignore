@@ -1,0 +1,11 @@
+# Laufzeit- & Nutzerdaten – NICHT versionieren
+urls.json
+clicks.json
+.ht_attempts.json
+.ht_tokens.json
+.ht_auth.json
+
+# lokale Test-/Build-Artefakte
+test.env
+*.zip
+.DS_Store

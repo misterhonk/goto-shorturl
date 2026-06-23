@@ -1,0 +1,20 @@
+# Lokale Testumgebung für GOTO
+#
+#   docker compose up -d --build
+#   -> http://localhost:8088/goto/admin
+#
+# Das Repo wird unter dem Pfad /goto/ eingehängt – passend zur Standard-
+# Einstellung "FallbackResource /goto/index.php" in der .htaccess.
+services:
+  web:
+    build: .
+    container_name: goto
+    ports:
+      - "8088:80"
+    volumes:
+      - ./:/var/www/html/goto
+    # Optionaler Test-Login per ENV (überschreibt config.php). Datei optional.
+    env_file:
+      - path: test.env
+        required: false
+    restart: unless-stopped
