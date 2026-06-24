@@ -6,6 +6,13 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Papierkorb**: gelöschte Links landen im Papierkorb und lassen sich samt
+  Klick-Zähler **wiederherstellen** oder endgültig löschen.
+- **Klick-Statistik** als Mini-**Sparkline** (Verlauf der letzten 14 Tage,
+  DSGVO-konform – nur Tageszähler, keine personenbezogenen Daten).
+- **CSV-Import** zusätzlich zu JSON (Spalten `url,slug,group,title,expires`).
+- **Mehrsprachigkeit (i18n)**: Oberfläche in **Deutsch oder Englisch**,
+  umschaltbar im Admin (pro Browser gespeichert), Standard via `config.php`.
 - **Sortieren** (Neueste / Älteste / Meiste Aufrufe / A–Z) und **Filtern**
   (alle / nur aktive / nur abgelaufene) der Linkliste.
 - **Batch-Export**: alle QR-Codes auf einmal als **ZIP** herunterladen

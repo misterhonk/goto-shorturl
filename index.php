@@ -67,7 +67,17 @@ if ($target !== null) {
         $cur    = stream_get_contents($fp);
         $clicks = $cur ? json_decode($cur, true) : [];
         if (!is_array($clicks)) $clicks = [];
-        $clicks[$slug] = (int) ($clicks[$slug] ?? 0) + 1;
+        // Format: { slug: { t: gesamt, d: { "YYYY-MM-DD": n } } }  (Alt-Format int wird migriert)
+        $rec = $clicks[$slug] ?? null;
+        if (!is_array($rec)) $rec = ['t' => (int) ($rec ?? 0), 'd' => []];
+        $rec['t'] = (int) ($rec['t'] ?? 0) + 1;
+        $today = date('Y-m-d');
+        $rec['d'][$today] = (int) (($rec['d'][$today] ?? 0)) + 1;
+        if (count($rec['d']) > 90) {                       // nur letzte 90 Tage behalten
+            $cut = date('Y-m-d', time() - 90 * 86400);
+            foreach ($rec['d'] as $day => $n) if ($day < $cut) unset($rec['d'][$day]);
+        }
+        $clicks[$slug] = $rec;
         rewind($fp);
         ftruncate($fp, 0);
         fwrite($fp, json_encode($clicks, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));

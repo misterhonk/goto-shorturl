@@ -30,7 +30,20 @@ define('CLICKS_FILE',   $dataDir . '/clicks.json');
 define('ATTEMPTS_FILE', $dataDir . '/.ht_attempts.json');
 define('TOKENS_FILE',   $dataDir . '/.ht_tokens.json');
 define('AUTH_FILE',     $dataDir . '/.ht_auth.json');
+define('TRASH_FILE',    $dataDir . '/.ht_trash.json');
 define('SHOW_FAVICONS', (bool) ($cfg['favicons'] ?? true));
+
+// Sprache: Cookie > config.php > Deutsch. Übersetzung über lang.php (Fallback: Deutsch).
+$LANG_EN = (array) (@include __DIR__ . '/lang.php');
+$lang = 'de';
+if (in_array((string) ($_COOKIE['goto_lang'] ?? ''), ['de', 'en'], true))      $lang = (string) $_COOKIE['goto_lang'];
+elseif (in_array((string) ($cfg['lang'] ?? ''), ['de', 'en'], true))           $lang = (string) $cfg['lang'];
+
+function t(string $de, ...$args): string {
+    global $lang, $LANG_EN;
+    $s = ($lang === 'en' && isset($LANG_EN[$de])) ? $LANG_EN[$de] : $de;
+    return $args ? vsprintf($s, $args) : $s;
+}
 
 const REMEMBER_COOKIE = 'goto_remember';
 const REMEMBER_TTL    = 2592000;   // „Angemeldet bleiben" – 30 Tage
@@ -148,6 +161,49 @@ function save_data(array $d): bool {
 function load_clicks(): array  { return load_json(CLICKS_FILE); }
 function save_clicks(array $c): bool { return save_json(CLICKS_FILE, $c); }
 
+// Klick-Datensatz kann int (Alt-Format) oder {t:total, d:{tag:n}} sein
+function clicks_total(array $clicks, string $slug): int {
+    $c = $clicks[$slug] ?? 0;
+    return is_array($c) ? (int) ($c['t'] ?? 0) : (int) $c;
+}
+function clicks_days(array $clicks, string $slug): array {
+    $c = $clicks[$slug] ?? null;
+    return (is_array($c) && isset($c['d']) && is_array($c['d'])) ? $c['d'] : [];
+}
+
+function load_trash(): array  { return load_json(TRASH_FILE); }
+function save_trash(array $t): bool { return save_json(TRASH_FILE, $t); }
+
+// CSV importieren. Kopfzeile mit Spalten url,slug,group,title,expires (Reihenfolge egal).
+// Ohne Kopfzeile: erste Spalte = url, zweite = slug usw. Trenner , oder ; wird erkannt.
+function csv_to_data(string $content): array {
+    $content = preg_replace('/^\xEF\xBB\xBF/', '', $content) ?? $content;     // BOM entfernen
+    $lines   = preg_split('/\r\n|\r|\n/', trim($content)) ?: [];
+    if (!$lines || $lines[0] === '') return ['groups' => [], 'links' => []];
+    $delim  = (substr_count($lines[0], ';') > substr_count($lines[0], ',')) ? ';' : ',';
+    $header = array_map(fn($h) => strtolower(trim((string) $h)), str_getcsv($lines[0], $delim));
+    $col    = function (string $name) use ($header) { $i = array_search($name, $header, true); return $i === false ? -1 : $i; };
+    $iUrl = $col('url');
+    if ($iUrl >= 0) { $iSlug = $col('slug'); $iGroup = $col('group'); $iTitle = $col('title'); $iExp = $col('expires'); $start = 1; }
+    else            { $iUrl = 0; $iSlug = 1; $iGroup = 2; $iTitle = 3; $iExp = 4; $start = 0; }   // keine Kopfzeile
+    $links = []; $groups = [];
+    for ($r = $start; $r < count($lines); $r++) {
+        if (trim($lines[$r]) === '') continue;
+        $cols = str_getcsv($lines[$r], $delim);
+        $get  = fn(int $i) => ($i >= 0 && isset($cols[$i])) ? trim((string) $cols[$i]) : '';
+        $url  = $get($iUrl);
+        if (!valid_url($url)) continue;
+        $slug = clean_slug($get($iSlug));
+        if ($slug === '') $slug = random_slug($links);
+        if (isset($links[$slug])) continue;
+        $group = clean_group($get($iGroup));
+        if ($group !== '' && !in_array($group, $groups, true)) $groups[] = $group;
+        $links[$slug] = ['url' => $url, 'group' => $group, 'title' => clean_title($get($iTitle)),
+                         'expires' => clean_date($get($iExp)), 'created' => time()];
+    }
+    return ['groups' => $groups, 'links' => $links];
+}
+
 // Passwort-Hash aus der Auth-Datei (vom Setup automatisch geschrieben)
 function stored_hash(): string { return (string) (load_json(AUTH_FILE)['hash'] ?? ''); }
 function save_hash(string $hash): bool { return save_json(AUTH_FILE, ['hash' => $hash]); }
@@ -262,6 +318,15 @@ if (preg_match('#/admin\.php$#', $reqPath)) {
     exit;
 }
 
+// Sprachumschaltung (?lang=de|en) -> Cookie setzen und zurück
+if (isset($_GET['lang']) && in_array($_GET['lang'], ['de', 'en'], true)) {
+    setcookie('goto_lang', $_GET['lang'], [
+        'expires' => time() + 31536000, 'path' => $cookieDir, 'samesite' => 'Lax',
+    ]);
+    header('Location: ' . $self);
+    exit;
+}
+
 session_set_cookie_params([
     'lifetime' => 0, 'path' => $cookieDir, 'httponly' => true,
     'secure' => $https, 'samesite' => 'Strict',
@@ -295,10 +360,11 @@ $base = ($https ? 'https' : 'http') . '://'
 /* ---------- Layout ------------------------------------------------- */
 
 function head(string $title, string $nonce): void {
+    global $lang;
     $dir = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/') . '/';
     ?>
 <!DOCTYPE html>
-<html lang="de">
+<html lang="<?= e($lang ?? 'de') ?>">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -328,7 +394,7 @@ function render_toasts(array $toasts): void {
 }
 
 function group_options(array $groups, string $selected): string {
-    $out = '<option value=""' . ($selected === '' ? ' selected' : '') . '>– ohne Gruppe –</option>';
+    $out = '<option value=""' . ($selected === '' ? ' selected' : '') . '>' . t('– ohne Gruppe –') . '</option>';
     foreach ($groups as $g) {
         $out .= '<option value="' . e($g) . '"' . ($g === $selected ? ' selected' : '') . '>' . e($g) . '</option>';
     }
@@ -358,14 +424,30 @@ function icon(string $name): string {
         'calendar' => '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
         'bars'     => '<path d="M12 20V10M18 20V4M6 20v-4"/>',
         'search'   => '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+        'undo'     => '<path d="M3 7v6h6"/><path d="M3.5 13a9 9 0 1 0 2.3-9.3L3 8"/>',
     ];
     return '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
          . 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
          . ($paths[$name] ?? '') . '</svg>';
 }
 
+// Mini-Verlaufsgrafik der letzten $n Tage (leer, wenn keine Tagesdaten vorliegen)
+function sparkline_svg(array $days, int $n = 14): string {
+    $vals = [];
+    for ($i = $n - 1; $i >= 0; $i--) $vals[] = (int) ($days[date('Y-m-d', time() - $i * 86400)] ?? 0);
+    $max = max($vals);
+    if ($max <= 0) return '';
+    $w = 56; $h = 18; $step = $w / ($n - 1); $pts = [];
+    foreach ($vals as $i => $v) {
+        $pts[] = round($i * $step, 1) . ',' . round($h - 1 - ($v / $max) * ($h - 2), 1);
+    }
+    return '<svg class="spark" viewBox="0 0 ' . $w . ' ' . $h . '" width="' . $w . '" height="' . $h . '" '
+         . 'preserveAspectRatio="none" aria-hidden="true"><polyline points="' . implode(' ', $pts)
+         . '" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+
 function render_table(array $rows, string $base, string $self, string $csrf, ?string $editing, array $groups, array $clicks): void {
-    if (!$rows) { echo '<p class="muted empty">Keine Links in dieser Gruppe.</p>'; return; }
+    if (!$rows) { echo '<p class="muted empty">' . t('Keine Links in dieser Gruppe.') . '</p>'; return; }
     echo '<table>';
     foreach ($rows as $slug => $l):
         $short = $base . $slug;
@@ -380,34 +462,34 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
             <div class="editgrid">
               <div class="erow">
                 <label class="field">
-                  <span class="field-label">Gewünschte Short-URL</span>
+                  <span class="field-label"><?= t('Gewünschte Short-URL') ?></span>
                   <input form="editform" type="text" name="newslug" value="<?= e($slug) ?>" pattern="[a-z0-9\-]+" required>
                 </label>
                 <label class="field field--date">
-                  <span class="field-label">Ablaufdatum (optional)</span>
+                  <span class="field-label"><?= t('Ablaufdatum (optional)') ?></span>
                   <span class="datefield">
                     <input form="editform" type="date" name="expires" value="<?= e($l['expires']) ?>">
-                    <button type="button" class="btn btn--ghost btn--small datefield-clear" data-clear-date title="Ablauf entfernen"><?= icon('x') ?></button>
+                    <button type="button" class="btn btn--ghost btn--small datefield-clear" data-clear-date title="<?= t('Ablauf entfernen') ?>"><?= icon('x') ?></button>
                   </span>
                 </label>
               </div>
               <label class="field">
-                <span class="field-label">Ziel-URL</span>
+                <span class="field-label"><?= t('Ziel-URL') ?></span>
                 <input form="editform" type="text" name="url" value="<?= e($url) ?>" required placeholder="https://…">
               </label>
               <label class="field">
-                <span class="field-label">Titel / Notiz</span>
+                <span class="field-label"><?= t('Titel / Notiz') ?></span>
                 <input form="editform" type="text" name="title" value="<?= e($l['title']) ?>" placeholder="optional">
               </label>
               <div class="erow erow--actions">
-                <button form="editform" class="btn btn--primary btn--small"><?= icon('check') ?>Speichern</button>
-                <a class="btn btn--ghost btn--small" href="<?= e($self) ?>"><?= icon('x') ?>Abbrechen</a>
+                <button form="editform" class="btn btn--primary btn--small"><?= icon('check') ?><?= t('Speichern') ?></button>
+                <a class="btn btn--ghost btn--small" href="<?= e($self) ?>"><?= icon('x') ?><?= t('Abbrechen') ?></a>
               </div>
             </div>
           </td>
         </tr>
         <?php else: ?>
-        <tr draggable="true" data-slug="<?= e($slug) ?>" data-search="<?= e($hay) ?>" data-created="<?= (int) $l['created'] ?>" data-clicks="<?= (int) ($clicks[$slug] ?? 0) ?>" data-expired="<?= is_expired($l['expires']) ? '1' : '0' ?>">
+        <tr draggable="true" data-slug="<?= e($slug) ?>" data-search="<?= e($hay) ?>" data-created="<?= (int) $l['created'] ?>" data-clicks="<?= clicks_total($clicks, $slug) ?>" data-expired="<?= is_expired($l['expires']) ? '1' : '0' ?>">
           <td class="cbcell"><input class="rowchk" type="checkbox" name="slugs[]" value="<?= e($slug) ?>" form="bulk"></td>
           <td>
             <div class="linkcell">
@@ -419,7 +501,7 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
             </div>
           </td>
           <td class="target" title="<?= e($url) ?>"><?= e($url) ?><?php if ($l['expires'] !== ''): ?><span class="chip <?= is_expired($l['expires']) ? 'chip--exp' : 'chip--date' ?>"><?= icon('calendar') ?><?= is_expired($l['expires']) ? 'abgelaufen' : e($l['expires']) ?></span><?php endif; ?></td>
-          <td class="clickcell"><span class="clicks" title="Aufrufe (anonym gezählt)"><?= icon('bars') ?><?= (int) ($clicks[$slug] ?? 0) ?></span></td>
+          <td class="clickcell"><span class="clicks" title="<?= t('Aufrufe gesamt (anonym) – Verlauf der letzten 14 Tage') ?>"><?php $spark = sparkline_svg(clicks_days($clicks, $slug)); echo $spark ?: icon('bars'); ?><?= clicks_total($clicks, $slug) ?></span></td>
           <td class="movecell">
             <form method="post" class="inline">
               <input type="hidden" name="action" value="move">
@@ -429,14 +511,14 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
             </form>
           </td>
           <td class="actions">
-            <button type="button" class="btn btn--ghost btn--small" data-qr="<?= e($short) ?>" data-slug="<?= e($slug) ?>" title="QR-Code" aria-label="QR-Code"><?= icon('qr') ?></button>
-            <button type="button" class="btn btn--ghost btn--small" data-copy="<?= e($short) ?>" title="Kurzlink kopieren" aria-label="Kopieren"><?= icon('copy') ?></button>
-            <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?edit=<?= urlencode($slug) ?>" title="Bearbeiten" aria-label="Bearbeiten"><?= icon('edit') ?></a>
-            <form class="inline" method="post" data-confirm="„<?= e($slug) ?>“ wirklich löschen?">
+            <button type="button" class="btn btn--ghost btn--small" data-qr="<?= e($short) ?>" data-slug="<?= e($slug) ?>" title="<?= t('QR-Code') ?>" aria-label="<?= t('QR-Code') ?>"><?= icon('qr') ?></button>
+            <button type="button" class="btn btn--ghost btn--small" data-copy="<?= e($short) ?>" title="<?= t('Kurzlink kopieren') ?>" aria-label="Kopieren"><?= icon('copy') ?></button>
+            <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?edit=<?= urlencode($slug) ?>" title="<?= t('Bearbeiten') ?>" aria-label="<?= t('Bearbeiten') ?>"><?= icon('edit') ?></a>
+            <form class="inline" method="post" data-confirm="<?= e(t('„%s“ wirklich löschen?', $slug)) ?>">
               <input type="hidden" name="action" value="delete">
               <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
               <input type="hidden" name="slug" value="<?= e($slug) ?>">
-              <button class="btn btn--danger btn--small" title="Löschen" aria-label="Löschen"><?= icon('trash') ?></button>
+              <button class="btn btn--danger btn--small" title="<?= t('Löschen') ?>" aria-label="<?= t('Löschen') ?>"><?= icon('trash') ?></button>
             </form>
           </td>
         </tr>
@@ -460,31 +542,30 @@ if ($passwordHash === '') {
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['new_password'])) {
         $pw = (string) $_POST['new_password'];
         if (strlen($pw) < 8) {
-            flash('Bitte mindestens 8 Zeichen wählen.');
+            flash(t('Bitte mindestens 8 Zeichen wählen.'));
             redirect($self);
         }
         $hash = password_hash($pw, PASSWORD_DEFAULT);
         if (save_hash($hash)) {
-            flash('Passwort gespeichert – du kannst dich jetzt anmelden.', 'success');
+            flash(t('Passwort gespeichert – du kannst dich jetzt anmelden.'), 'success');
             redirect($self);
         }
         $manualHash = $hash;   // Datenordner nicht beschreibbar -> manueller Weg
     }
-    head('GOTO – Einrichtung', $nonce);
+    head('GOTO – ' . t('Einrichtung'), $nonce);
     echo '<div class="topbar"><div class="brand"><span class="brand-mark">' . logo_mark()
-       . '</span><div><h1>GOTO</h1><p class="sub">Einrichtung</p></div></div></div>';
+       . '</span><div><h1>GOTO</h1><p class="sub">' . t('Einrichtung') . '</p></div></div></div>';
     render_toasts($flashMsg ? [$flashMsg] : []);
     if ($manualHash) { ?>
         <p class="muted">Das automatische Speichern hat nicht geklappt (Schreibrechte im
         Datenverzeichnis fehlen). Trag diese Zeile in <code>config.php</code> ein:</p>
         <textarea class="hashbox" rows="3" readonly>'password_hash' => '<?= e($manualHash) ?>',</textarea>
     <?php } else { ?>
-        <p class="muted">Lege ein Passwort fest – es wird sicher (bcrypt) gespeichert.
-        Danach kannst du dich direkt anmelden.</p>
+        <p class="muted"><?= t('Lege ein Passwort fest – es wird sicher (bcrypt) gespeichert. Danach kannst du dich direkt anmelden.') ?></p>
         <form class="card" method="post" autocomplete="off">
-            <label>Passwort festlegen (mind. 8 Zeichen)</label>
+            <label><?= t('Passwort festlegen (mind. 8 Zeichen)') ?></label>
             <input type="password" name="new_password" minlength="8" autofocus required>
-            <button class="btn btn--primary"><?= icon('lock') ?>Passwort speichern</button>
+            <button class="btn btn--primary"><?= icon('lock') ?><?= t('Passwort speichern') ?></button>
         </form>
     <?php }
     foot($nonce);
@@ -517,7 +598,7 @@ if ($loggedIn && time() - (int) ($_SESSION['seen'] ?? 0) > $idleTimeout) {
     $loggedIn = false;
     unset($_SESSION['auth']);
     session_regenerate_id(true);
-    $loginInfo = 'Sitzung abgelaufen – bitte erneut anmelden.';
+    $loginInfo = t('Sitzung abgelaufen – bitte erneut anmelden.');
 }
 if ($loggedIn) $_SESSION['seen'] = time();
 
@@ -539,7 +620,7 @@ $loginError = null;
 if (!$loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['password'])) {
     $wait = lock_remaining($clientKey);
     if ($wait > 0) {
-        $loginError = 'Zu viele Fehlversuche. Bitte ' . (int) ceil($wait / 60) . ' Min. warten.';
+        $loginError = t('Zu viele Fehlversuche. Bitte %d Min. warten.', (int) ceil($wait / 60));
     } elseif (password_verify((string) $_POST['password'], $passwordHash)) {
         session_regenerate_id(true);
         $_SESSION['auth'] = true;
@@ -551,7 +632,7 @@ if (!$loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST[
     } else {
         register_fail($clientKey, $maxAttempts, $lockoutSeconds);
         usleep(300000);
-        $loginError = 'Falsches Passwort.';
+        $loginError = t('Falsches Passwort.');
     }
 }
 
@@ -585,28 +666,28 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
 
     if ($action === 'add') {
         if (!valid_url($url)) {
-            flash('Bitte eine gültige http(s)-URL angeben.');
+            flash(t('Bitte eine gültige http(s)-URL angeben.'));
         } else {
             if ($slug === '') $slug = random_slug($data['links']);
             if (in_array($slug, ['admin', 'index'], true)) {
-                flash('„' . $slug . '“ ist reserviert – bitte ein anderes Kürzel wählen.');
+                flash(t('„%s“ ist reserviert – bitte ein anderes Kürzel wählen.', $slug));
             } elseif (isset($data['links'][$slug])) {
-                flash('Kürzel „' . $slug . '“ existiert bereits.');
+                flash(t('Kürzel „%s“ existiert bereits.', $slug));
             } else {
                 $data['links'][$slug] = ['url' => $url, 'group' => $groupValid,
                     'title' => $title, 'expires' => $expires, 'created' => time()];
                 save_data($data)
-                    ? flash('„' . $slug . '“ angelegt.', 'success')
-                    : flash('Konnte nicht speichern – Schreibrechte für urls.json prüfen.');
+                    ? flash(t('„%s“ angelegt.', $slug), 'success')
+                    : flash(t('Konnte nicht speichern – Schreibrechte für urls.json prüfen.'));
             }
         }
     } elseif ($action === 'update') {
         $newslug = clean_slug((string) ($_POST['newslug'] ?? ''));
-        if (!isset($data['links'][$slug]))                    flash('Unbekanntes Kürzel.');
-        elseif (!valid_url($url))                             flash('Bitte eine gültige Ziel-URL angeben.');
-        elseif ($newslug === '')                              flash('Bitte eine Short-URL angeben.');
-        elseif (in_array($newslug, ['admin', 'index'], true)) flash('„' . $newslug . '“ ist reserviert.');
-        elseif ($newslug !== $slug && isset($data['links'][$newslug])) flash('„' . $newslug . '“ ist bereits vergeben.');
+        if (!isset($data['links'][$slug]))                    flash(t('Unbekanntes Kürzel.'));
+        elseif (!valid_url($url))                             flash(t('Bitte eine gültige Ziel-URL angeben.'));
+        elseif ($newslug === '')                              flash(t('Bitte eine Short-URL angeben.'));
+        elseif (in_array($newslug, ['admin', 'index'], true)) flash(t('„%s“ ist reserviert.', $newslug));
+        elseif ($newslug !== $slug && isset($data['links'][$newslug])) flash(t('„%s“ ist bereits vergeben.', $newslug));
         else {
             $entry = $data['links'][$slug];
             $entry['url'] = $url; $entry['title'] = $title; $entry['expires'] = $expires;
@@ -621,59 +702,67 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
                 $cl = load_clicks();
                 if (isset($cl[$slug])) { $cl[$newslug] = $cl[$slug]; unset($cl[$slug]); save_clicks($cl); }
             }
-            save_data($data) ? flash('„' . $newslug . '“ aktualisiert.', 'success')
-                             : flash('Konnte nicht speichern.');
+            save_data($data) ? flash(t('„%s“ aktualisiert.', $newslug), 'success')
+                             : flash(t('Konnte nicht speichern.'));
         }
     } elseif ($action === 'move') {
         if (isset($data['links'][$slug])) {
             $data['links'][$slug]['group'] = $groupValid;
             save_data($data);
-            flash('„' . $slug . '“ verschoben.', 'success');
+            flash(t('„%s“ verschoben.', $slug), 'success');
         }
     } elseif ($action === 'delete') {
         if (isset($data['links'][$slug])) {
-            unset($data['links'][$slug]);
-            save_data($data);
-            $cl = load_clicks(); unset($cl[$slug]); save_clicks($cl);
-            flash('„' . $slug . '“ gelöscht.', 'success');
+            $cl = load_clicks(); $tr = load_trash();
+            $tr[$slug] = $data['links'][$slug];
+            $tr[$slug]['deleted'] = time();
+            $tr[$slug]['clicks']  = $cl[$slug] ?? 0;
+            unset($data['links'][$slug], $cl[$slug]);
+            save_data($data); save_clicks($cl); save_trash($tr);
+            flash(t('„%s“ in den Papierkorb verschoben.', $slug), 'success');
         }
     } elseif ($action === 'bulk') {
         $op    = (string) ($_POST['op'] ?? '');
         $slugs = array_map('clean_slug', (array) ($_POST['slugs'] ?? []));
         $slugs = array_values(array_filter($slugs, fn($s) => $s !== '' && isset($data['links'][$s])));
         if (!$slugs) {
-            flash('Keine Links markiert.');
+            flash(t('Keine Links markiert.'));
         } elseif ($op === 'move') {
             foreach ($slugs as $s) $data['links'][$s]['group'] = $groupValid;
             save_data($data);
-            flash(count($slugs) . ' Link(s) verschoben.', 'success');
+            flash(t('%d Link(s) verschoben.', count($slugs)), 'success');
         } elseif ($op === 'delete') {
-            foreach ($slugs as $s) unset($data['links'][$s]);
-            save_data($data);
-            $cl = load_clicks(); foreach ($slugs as $s) unset($cl[$s]); save_clicks($cl);
-            flash(count($slugs) . ' Link(s) gelöscht.', 'success');
+            $cl = load_clicks(); $tr = load_trash();
+            foreach ($slugs as $s) {
+                $tr[$s] = $data['links'][$s];
+                $tr[$s]['deleted'] = time();
+                $tr[$s]['clicks']  = $cl[$s] ?? 0;
+                unset($data['links'][$s], $cl[$s]);
+            }
+            save_data($data); save_clicks($cl); save_trash($tr);
+            flash(t('%d Link(s) in den Papierkorb verschoben.', count($slugs)), 'success');
         } elseif ($op === 'reset') {
             $cl = load_clicks(); foreach ($slugs as $s) unset($cl[$s]); save_clicks($cl);
-            flash('Zähler von ' . count($slugs) . ' Link(s) zurückgesetzt.', 'success');
+            flash(t('Zähler von %d Link(s) zurückgesetzt.', count($slugs)), 'success');
         }
     } elseif ($action === 'group_add') {
         $g = clean_group((string) ($_POST['group_name'] ?? ''));
-        if ($g === '')                                flash('Bitte einen Gruppennamen angeben.');
-        elseif (in_array($g, $data['groups'], true))  flash('Gruppe „' . $g . '“ existiert bereits.');
-        else { $data['groups'][] = $g; save_data($data); flash('Gruppe „' . $g . '“ angelegt.', 'success'); }
+        if ($g === '')                                flash(t('Bitte einen Gruppennamen angeben.'));
+        elseif (in_array($g, $data['groups'], true))  flash(t('Gruppe „%s“ existiert bereits.', $g));
+        else { $data['groups'][] = $g; save_data($data); flash(t('Gruppe „%s“ angelegt.', $g), 'success'); }
     } elseif ($action === 'group_rename') {
         $old = clean_group((string) ($_POST['old'] ?? ''));
         $new = clean_group((string) ($_POST['new'] ?? ''));
         $i   = array_search($old, $data['groups'], true);
-        if ($i === false)                                          flash('Unbekannte Gruppe.');
-        elseif ($new === '')                                       flash('Bitte einen Namen angeben.');
-        elseif ($new !== $old && in_array($new, $data['groups'], true)) flash('Gruppe „' . $new . '“ existiert bereits.');
+        if ($i === false)                                          flash(t('Unbekannte Gruppe.'));
+        elseif ($new === '')                                       flash(t('Bitte einen Namen angeben.'));
+        elseif ($new !== $old && in_array($new, $data['groups'], true)) flash(t('Gruppe „%s“ existiert bereits.', $new));
         else {
             $data['groups'][$i] = $new;
             foreach ($data['links'] as &$l) if ($l['group'] === $old) $l['group'] = $new;
             unset($l);
             save_data($data);
-            flash('Gruppe umbenannt.', 'success');
+            flash(t('Gruppe umbenannt.'), 'success');
         }
     } elseif ($action === 'group_delete') {
         $g = clean_group((string) ($_POST['group'] ?? ''));
@@ -683,18 +772,19 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
             foreach ($data['links'] as &$l) if ($l['group'] === $g) $l['group'] = '';
             unset($l);
             save_data($data);
-            flash('Gruppe „' . $g . '“ gelöscht.', 'success');
+            flash(t('Gruppe „%s“ gelöscht.', $g), 'success');
         }
     } elseif ($action === 'import') {
         $tmp = $_FILES['file']['tmp_name'] ?? '';
         if ($tmp === '' || !is_uploaded_file($tmp)) {
-            flash('Keine Datei empfangen.');
+            flash(t('Keine Datei empfangen.'));
         } else {
-            $parsed = json_decode((string) file_get_contents($tmp), true);
-            if (!is_array($parsed)) {
-                flash('Die Datei ist kein gültiges JSON.');
+            $content  = (string) file_get_contents($tmp);
+            $parsed   = json_decode($content, true);
+            $imported = is_array($parsed) ? normalize_data($parsed) : csv_to_data($content);
+            if (!$imported['links']) {
+                flash(t('Keine gültigen Einträge gefunden (JSON oder CSV erwartet).'));
             } else {
-                $imported = normalize_data($parsed);
                 if (!empty($_POST['merge'])) {
                     foreach ($imported['links'] as $s => $l) $data['links'][$s] = $l;
                     foreach ($imported['groups'] as $g) if (!in_array($g, $data['groups'], true)) $data['groups'][] = $g;
@@ -702,24 +792,47 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
                     $data = $imported;
                 }
                 save_data($data)
-                    ? flash(count($imported['links']) . ' Link(s) importiert.', 'success')
-                    : flash('Konnte nicht speichern.');
+                    ? flash(t('%d Link(s) importiert.', count($imported['links'])), 'success')
+                    : flash(t('Konnte nicht speichern.'));
             }
         }
     } elseif ($action === 'change_password') {
         if (!$hashEditable) {
-            flash('Das Passwort ist in config.php/ENV festgelegt und hier nicht änderbar.');
+            flash(t('Das Passwort ist in config.php/ENV festgelegt und hier nicht änderbar.'));
         } else {
             $curp = (string) ($_POST['current'] ?? '');
             $newp = (string) ($_POST['new'] ?? '');
-            if (!password_verify($curp, $passwordHash)) flash('Aktuelles Passwort ist falsch.');
-            elseif (strlen($newp) < 8)                  flash('Neues Passwort: mindestens 8 Zeichen.');
+            if (!password_verify($curp, $passwordHash)) flash(t('Aktuelles Passwort ist falsch.'));
+            elseif (strlen($newp) < 8)                  flash(t('Neues Passwort: mindestens 8 Zeichen.'));
             else {
                 save_hash(password_hash($newp, PASSWORD_DEFAULT))
-                    ? flash('Passwort geändert.', 'success')
-                    : flash('Konnte nicht speichern – Schreibrechte prüfen.');
+                    ? flash(t('Passwort geändert.'), 'success')
+                    : flash(t('Konnte nicht speichern – Schreibrechte prüfen.'));
             }
         }
+    } elseif ($action === 'restore') {
+        $tr = load_trash();
+        if (!isset($tr[$slug]))            flash(t('Eintrag nicht im Papierkorb.'));
+        elseif (isset($data['links'][$slug])) flash(t('Kürzel „%s“ ist bereits vergeben.', $slug));
+        else {
+            $it = $tr[$slug];
+            $g  = clean_group((string) ($it['group'] ?? ''));
+            if ($g !== '' && !in_array($g, $data['groups'], true)) $data['groups'][] = $g;
+            $data['links'][$slug] = ['url' => (string) ($it['url'] ?? ''), 'group' => $g,
+                'title' => (string) ($it['title'] ?? ''), 'expires' => (string) ($it['expires'] ?? ''),
+                'created' => (int) ($it['created'] ?? 0)];
+            $clrec = $it['clicks'] ?? 0;
+            unset($tr[$slug]);
+            $cl = load_clicks(); if ($clrec) $cl[$slug] = $clrec; save_clicks($cl);
+            save_data($data); save_trash($tr);
+            flash(t('„%s“ wiederhergestellt.', $slug), 'success');
+        }
+    } elseif ($action === 'trash_delete') {
+        $tr = load_trash();
+        if (isset($tr[$slug])) { unset($tr[$slug]); save_trash($tr); flash(t('„%s“ endgültig gelöscht.', $slug), 'success'); }
+    } elseif ($action === 'trash_empty') {
+        save_trash([]);
+        flash(t('Papierkorb geleert.'), 'success');
     }
     redirect($self);
 }
@@ -729,19 +842,19 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
  * ================================================================== */
 
 if (!$loggedIn) {
-    head('GOTO – Anmelden', $nonce);
+    head('GOTO – ' . t('Anmelden'), $nonce);
     echo '<div class="topbar"><div class="brand"><span class="brand-mark">' . logo_mark()
-       . '</span><div><h1>GOTO</h1><p class="sub">URL-Weiterleitungen &amp; QR-Codes</p></div></div></div>';
+       . '</span><div><h1>GOTO</h1><p class="sub">' . t('URL-Weiterleitungen &amp; QR-Codes') . '</p></div></div></div>';
     $lt = $flashMsg ? [$flashMsg] : [];
     if ($loginError) $lt[] = ['msg' => $loginError, 'type' => 'error'];
     if ($loginInfo)  $lt[] = ['msg' => $loginInfo,  'type' => 'info'];
     render_toasts($lt);
     ?>
     <form class="card" method="post" autocomplete="off">
-        <label>Passwort</label>
+        <label><?= t('Passwort') ?></label>
         <input type="password" name="password" autofocus required>
-        <label class="chk chk--remember"><input type="checkbox" name="remember" value="1"> Angemeldet bleiben</label>
-        <button class="btn btn--primary"><?= icon('lock') ?>Anmelden</button>
+        <label class="chk chk--remember"><input type="checkbox" name="remember" value="1"> <?= t('Angemeldet bleiben') ?></label>
+        <button class="btn btn--primary"><?= icon('lock') ?><?= t('Anmelden') ?></button>
     </form>
     <?php
     foot($nonce);
@@ -756,6 +869,7 @@ $data      = load_data();
 $links     = $data['links'];
 $groups    = $data['groups'];
 $clicks    = load_clicks();
+$trash     = load_trash();
 $csrf      = csrf_token();
 $editing   = isset($_GET['edit'])      ? clean_slug((string) $_GET['edit'])       : null;
 $editgroup = isset($_GET['editgroup']) ? clean_group((string) $_GET['editgroup']) : null;
@@ -774,16 +888,20 @@ head('GOTO', $nonce);
     <span class="brand-mark"><?= logo_mark() ?></span>
     <div>
       <h1>GOTO</h1>
-      <p class="sub">URL-Weiterleitungen &amp; QR-Codes</p>
+      <p class="sub"><?= t('URL-Weiterleitungen &amp; QR-Codes') ?></p>
     </div>
   </div>
   <div class="topbar-actions">
-    <select id="theme" aria-label="Darstellung" title="Darstellung">
-      <option value="system">System</option>
-      <option value="light">Hell</option>
-      <option value="dark">Dunkel</option>
+    <select id="lang" aria-label="<?= t('Sprache') ?>" title="<?= t('Sprache') ?>" data-self="<?= e($self) ?>">
+      <option value="de"<?= $lang === 'de' ? ' selected' : '' ?>>Deutsch</option>
+      <option value="en"<?= $lang === 'en' ? ' selected' : '' ?>>English</option>
     </select>
-    <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?logout"><?= icon('logout') ?>Abmelden</a>
+    <select id="theme" aria-label="<?= t('Darstellung') ?>" title="<?= t('Darstellung') ?>">
+      <option value="system"><?= t('System') ?></option>
+      <option value="light"><?= t('Hell') ?></option>
+      <option value="dark"><?= t('Dunkel') ?></option>
+    </select>
+    <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?logout"><?= icon('logout') ?><?= t('Abmelden') ?></a>
   </div>
 </div>
 
@@ -795,33 +913,33 @@ head('GOTO', $nonce);
     <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
     <div class="bar">
       <label class="field grow">
-        <span class="field-label">Ziel-URL</span>
+        <span class="field-label"><?= t('Ziel-URL') ?></span>
         <input type="text" name="url" placeholder="https://ziel-adresse.de/…" required>
       </label>
     </div>
     <div class="bar">
       <label class="field grow2">
-        <span class="field-label">Gewünschte Short-URL</span>
-        <input type="text" name="slug" placeholder="leer lassen für zufälligen Wert" pattern="[a-z0-9\-]*">
+        <span class="field-label"><?= t('Gewünschte Short-URL') ?></span>
+        <input type="text" name="slug" placeholder="<?= t('leer lassen für zufälligen Wert') ?>" pattern="[a-z0-9\-]*">
       </label>
       <label class="field field--group">
-        <span class="field-label">Gruppe</span>
+        <span class="field-label"><?= t('Gruppe') ?></span>
         <select name="group"><?= group_options($groups, '') ?></select>
       </label>
       <label class="field field--date">
-        <span class="field-label">Ablaufdatum (optional)</span>
+        <span class="field-label"><?= t('Ablaufdatum (optional)') ?></span>
         <span class="datefield">
           <input type="date" name="expires" title="Nach diesem Tag ist der Link gesperrt">
-          <button type="button" class="btn btn--ghost btn--small datefield-clear" data-clear-date title="Ablauf entfernen"><?= icon('x') ?></button>
+          <button type="button" class="btn btn--ghost btn--small datefield-clear" data-clear-date title="<?= t('Ablauf entfernen') ?>"><?= icon('x') ?></button>
         </span>
       </label>
     </div>
     <div class="bar bar--end">
       <label class="field grow">
-        <span class="field-label">Titel / Notiz</span>
+        <span class="field-label"><?= t('Titel / Notiz') ?></span>
         <input type="text" name="title" placeholder="optional – z. B. „Intro-Video“">
       </label>
-      <button class="btn btn--primary"><?= icon('plus') ?>Hinzufügen</button>
+      <button class="btn btn--primary"><?= icon('plus') ?><?= t('Hinzufügen') ?></button>
     </div>
   </form>
 
@@ -829,10 +947,10 @@ head('GOTO', $nonce);
     <input type="hidden" name="action" value="group_add">
     <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
     <label class="field grow">
-      <span class="field-label">Neue Gruppe / Projekt</span>
+      <span class="field-label"><?= t('Neue Gruppe / Projekt') ?></span>
       <input type="text" name="group_name" placeholder="z. B. Bachelorarbeit" maxlength="40" required>
     </label>
-    <button class="btn btn--ghost"><?= icon('folder') ?>Gruppe anlegen</button>
+    <button class="btn btn--ghost"><?= icon('folder') ?><?= t('Gruppe anlegen') ?></button>
   </form>
 </div>
 
@@ -847,33 +965,33 @@ head('GOTO', $nonce);
 <form id="bulk" class="panel bulkbar" method="post">
   <input type="hidden" name="action" value="bulk">
   <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
-  <label class="chk"><input type="checkbox" id="selall"> <span id="selcount">0 markiert</span></label>
+  <label class="chk"><input type="checkbox" id="selall"> <span id="selcount" data-tpl="<?= e(t('%d markiert')) ?>"><?= t('%d markiert', 0) ?></span></label>
   <span class="bulk-spacer"></span>
-  <select name="group" aria-label="Zielgruppe"><?= group_options($groups, '') ?></select>
-  <button class="btn btn--ghost btn--small" name="op" value="move"><?= icon('folder') ?>Verschieben</button>
-  <button class="btn btn--ghost btn--small" name="op" value="reset"><?= icon('bars') ?>Zähler&nbsp;0</button>
-  <button class="btn btn--danger btn--small" name="op" value="delete" data-confirm="Markierte Links wirklich löschen?"><?= icon('trash') ?>Löschen</button>
+  <select name="group" aria-label="<?= t('Gruppe') ?>"><?= group_options($groups, '') ?></select>
+  <button class="btn btn--ghost btn--small" name="op" value="move"><?= icon('folder') ?><?= t('Verschieben') ?></button>
+  <button class="btn btn--ghost btn--small" name="op" value="reset"><?= icon('bars') ?><?= t('Zähler&nbsp;0') ?></button>
+  <button class="btn btn--danger btn--small" name="op" value="delete" data-confirm="<?= t('Markierte Links wirklich löschen?') ?>"><?= icon('trash') ?><?= t('Löschen') ?></button>
 </form>
 
 <?php if ($links): ?>
   <div class="listctl">
     <div class="search">
       <?= icon('search') ?>
-      <input type="text" id="search" placeholder="Suchen … Kürzel, Titel, URL oder Gruppe" autocomplete="off">
+      <input type="text" id="search" placeholder="<?= t('Suchen … Kürzel, Titel, URL oder Gruppe') ?>" autocomplete="off">
     </div>
-    <label class="ctl"><span class="ctl-label">Sortieren</span>
+    <label class="ctl"><span class="ctl-label"><?= t('Sortieren') ?></span>
       <select id="sort">
-        <option value="new">Neueste zuerst</option>
-        <option value="old">Älteste zuerst</option>
-        <option value="clicks">Meiste Aufrufe</option>
-        <option value="az">A – Z (Kürzel)</option>
+        <option value="new"><?= t('Neueste zuerst') ?></option>
+        <option value="old"><?= t('Älteste zuerst') ?></option>
+        <option value="clicks"><?= t('Meiste Aufrufe') ?></option>
+        <option value="az"><?= t('A – Z (Kürzel)') ?></option>
       </select>
     </label>
-    <label class="ctl"><span class="ctl-label">Anzeigen</span>
+    <label class="ctl"><span class="ctl-label"><?= t('Anzeigen') ?></span>
       <select id="filter">
-        <option value="all">Alle</option>
-        <option value="active">Nur aktive</option>
-        <option value="expired">Nur abgelaufene</option>
+        <option value="all"><?= t('Alle') ?></option>
+        <option value="active"><?= t('Nur aktive') ?></option>
+        <option value="expired"><?= t('Nur abgelaufene') ?></option>
       </select>
     </label>
   </div>
@@ -887,7 +1005,7 @@ head('GOTO', $nonce);
 </form>
 
 <?php if (!$links): ?>
-  <p class="muted empty">Noch keine Links angelegt.</p>
+  <p class="muted empty"><?= t('Noch keine Links angelegt.') ?></p>
 <?php endif; ?>
 
 <?php foreach ($groups as $g): ?>
@@ -899,18 +1017,18 @@ head('GOTO', $nonce);
           <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
           <input type="hidden" name="old" value="<?= e($g) ?>">
           <input type="text" name="new" value="<?= e($g) ?>" maxlength="40" autofocus required>
-          <button class="btn btn--primary btn--small"><?= icon('check') ?>Speichern</button>
-          <a class="btn btn--ghost btn--small" href="<?= e($self) ?>"><?= icon('x') ?>Abbrechen</a>
+          <button class="btn btn--primary btn--small"><?= icon('check') ?><?= t('Speichern') ?></button>
+          <a class="btn btn--ghost btn--small" href="<?= e($self) ?>"><?= icon('x') ?><?= t('Abbrechen') ?></a>
         </form>
       <?php else: ?>
         <h2><?= e($g) ?><span class="count"><?= count($sections[$g]) ?></span></h2>
         <span class="group-actions">
-          <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?editgroup=<?= urlencode($g) ?>"><?= icon('edit') ?>Umbenennen</a>
-          <form class="inline" method="post" data-confirm="Gruppe „<?= e($g) ?>“ löschen? Links wandern zu „ohne Gruppe".">
+          <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?editgroup=<?= urlencode($g) ?>"><?= icon('edit') ?><?= t('Umbenennen') ?></a>
+          <form class="inline" method="post" data-confirm="<?= e(t('Gruppe „%s“ löschen? Links wandern zu „ohne Gruppe".', $g)) ?>">
             <input type="hidden" name="action" value="group_delete">
             <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
             <input type="hidden" name="group" value="<?= e($g) ?>">
-            <button class="btn btn--ghost btn--small"><?= icon('trash') ?>Löschen</button>
+            <button class="btn btn--ghost btn--small"><?= icon('trash') ?><?= t('Löschen') ?></button>
           </form>
         </span>
       <?php endif; ?>
@@ -922,37 +1040,37 @@ head('GOTO', $nonce);
 <?php if ($ungrouped): ?>
   <section class="group" data-group="">
     <div class="group-head">
-      <h2>Ohne Gruppe<span class="count"><?= count($ungrouped) ?></span></h2>
+      <h2><?= t('Ohne Gruppe') ?><span class="count"><?= count($ungrouped) ?></span></h2>
     </div>
     <?php render_table($ungrouped, $base, $self, $csrf, $editing, $groups, $clicks); ?>
   </section>
 <?php endif; ?>
 
-<?php if ($links): ?><p id="noresults" class="muted empty" hidden>Keine Treffer für die Suche.</p><?php endif; ?>
+<?php if ($links): ?><p id="noresults" class="muted empty" hidden><?= t('Keine Treffer für die Suche.') ?></p><?php endif; ?>
 
 <dialog id="qrdlg" class="qrdlg">
   <div class="qrdlg-head">
-    <strong id="qrTitle">QR-Code</strong>
-    <button type="button" class="btn btn--ghost btn--small" id="qrClose"><?= icon('x') ?>Schließen</button>
+    <strong id="qrTitle"><?= t('QR-Code') ?></strong>
+    <button type="button" class="btn btn--ghost btn--small" id="qrClose"><?= icon('x') ?><?= t('Schließen') ?></button>
   </div>
   <div class="qrdlg-body">
     <div class="qrprev" id="qrPrev"></div>
     <div class="qropts">
-      <label>Fehlerkorrektur
+      <label><?= t('Fehlerkorrektur') ?>
         <select id="qrEcl">
-          <option value="L">L – niedrig (7 %)</option>
-          <option value="M" selected>M – mittel (15 %)</option>
-          <option value="Q">Q – hoch (25 %)</option>
-          <option value="H">H – maximal (30 %)</option>
+          <option value="L"><?= t('L – niedrig (7 %)') ?></option>
+          <option value="M" selected><?= t('M – mittel (15 %)') ?></option>
+          <option value="Q"><?= t('Q – hoch (25 %)') ?></option>
+          <option value="H"><?= t('H – maximal (30 %)') ?></option>
         </select>
       </label>
       <div class="qrrow">
-        <label>Modulgröße (px)<input type="number" id="qrScale" min="2" max="40" value="8"></label>
-        <label>Rand (Module)<input type="number" id="qrMargin" min="0" max="16" value="4"></label>
+        <label><?= t('Modulgröße (px)') ?><input type="number" id="qrScale" min="2" max="40" value="8"></label>
+        <label><?= t('Rand (Module)') ?><input type="number" id="qrMargin" min="0" max="16" value="4"></label>
       </div>
       <div class="qrrow">
-        <label>Vordergrund<input type="color" id="qrFg" value="#000000"></label>
-        <label>Hintergrund<input type="color" id="qrBg" value="#ffffff"></label>
+        <label><?= t('Vordergrund') ?><input type="color" id="qrFg" value="#000000"></label>
+        <label><?= t('Hintergrund') ?><input type="color" id="qrBg" value="#ffffff"></label>
       </div>
       <p class="muted qrurl" id="qrUrl"></p>
       <div class="qrdl">
@@ -964,37 +1082,73 @@ head('GOTO', $nonce);
 </dialog>
 
 <details class="tools">
-  <summary>Export / Import</summary>
+  <summary><?= t('Export / Import') ?></summary>
   <p class="toolbtns">
-    <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?export=1"><?= icon('download') ?>Export – JSON herunterladen</a>
-    <?php if ($links): ?><button type="button" id="qrAllZip" class="btn btn--ghost btn--small"><?= icon('qr') ?>Alle QR-Codes (ZIP)</button><?php endif; ?>
+    <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?export=1"><?= icon('download') ?><?= t('Export – JSON herunterladen') ?></a>
+    <?php if ($links): ?><button type="button" id="qrAllZip" class="btn btn--ghost btn--small"><?= icon('qr') ?><?= t('Alle QR-Codes (ZIP)') ?></button><?php endif; ?>
   </p>
   <form class="bar" method="post" enctype="multipart/form-data" autocomplete="off">
     <input type="hidden" name="action" value="import">
     <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
-    <input type="file" name="file" accept="application/json,.json" required>
-    <label class="chk"><input type="checkbox" name="merge" value="1"> mit Bestand zusammenführen</label>
-    <button class="btn btn--ghost"><?= icon('upload') ?>Importieren</button>
+    <input type="file" name="file" accept="application/json,.json,text/csv,.csv" required>
+    <label class="chk"><input type="checkbox" name="merge" value="1"> <?= t('mit Bestand zusammenführen') ?></label>
+    <button class="btn btn--ghost"><?= icon('upload') ?><?= t('Importieren') ?></button>
   </form>
-  <p class="muted">Ohne Häkchen werden alle bestehenden Einträge <strong>ersetzt</strong>. Klick-Zähler werden nicht exportiert.</p>
+  <p class="muted">Akzeptiert <strong>JSON</strong> oder <strong>CSV</strong> (Spalten: <code>url,slug,group,title,expires</code>).
+  Ohne Häkchen werden alle bestehenden Einträge <strong>ersetzt</strong>. Klick-Zähler werden nicht exportiert.</p>
 </details>
 
 <?php if ($hashEditable): ?>
 <details class="tools">
-  <summary>Passwort ändern</summary>
+  <summary><?= t('Passwort ändern') ?></summary>
   <form class="bar bar--end" method="post" autocomplete="off">
     <input type="hidden" name="action" value="change_password">
     <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
     <label class="field grow">
-      <span class="field-label">Aktuelles Passwort</span>
+      <span class="field-label"><?= t('Aktuelles Passwort') ?></span>
       <input type="password" name="current" autocomplete="current-password" required>
     </label>
     <label class="field grow">
-      <span class="field-label">Neues Passwort (mind. 8 Zeichen)</span>
+      <span class="field-label"><?= t('Neues Passwort (mind. 8 Zeichen)') ?></span>
       <input type="password" name="new" minlength="8" autocomplete="new-password" required>
     </label>
-    <button class="btn btn--primary"><?= icon('lock') ?>Speichern</button>
+    <button class="btn btn--primary"><?= icon('lock') ?><?= t('Speichern') ?></button>
   </form>
+</details>
+<?php endif; ?>
+
+<?php if ($trash): ?>
+<details class="tools">
+  <summary><?= t('Papierkorb') ?> <span class="count"><?= count($trash) ?></span></summary>
+  <table class="trashlist">
+    <?php foreach ($trash as $tslug => $ti): ?>
+    <tr>
+      <td><span class="slugmono"><?= e($tslug) ?></span><?php if (($ti['title'] ?? '') !== ''): ?> <span class="muted"><?= e((string) $ti['title']) ?></span><?php endif; ?></td>
+      <td class="target" title="<?= e((string) ($ti['url'] ?? '')) ?>"><?= e((string) ($ti['url'] ?? '')) ?></td>
+      <td class="muted nowrap"><?= isset($ti['deleted']) ? e(date('d.m.Y', (int) $ti['deleted'])) : '' ?></td>
+      <td class="actions">
+        <form class="inline" method="post">
+          <input type="hidden" name="action" value="restore">
+          <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
+          <input type="hidden" name="slug" value="<?= e($tslug) ?>">
+          <button class="btn btn--ghost btn--small"><?= icon('undo') ?><?= t('Wiederherstellen') ?></button>
+        </form>
+        <form class="inline" method="post" data-confirm="<?= e(t('„%s“ endgültig löschen?', $tslug)) ?>">
+          <input type="hidden" name="action" value="trash_delete">
+          <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
+          <input type="hidden" name="slug" value="<?= e($tslug) ?>">
+          <button class="btn btn--danger btn--small" title="<?= t('Endgültig löschen') ?>" aria-label="<?= t('Endgültig löschen') ?>"><?= icon('trash') ?></button>
+        </form>
+      </td>
+    </tr>
+    <?php endforeach; ?>
+  </table>
+  <form class="inline" method="post" data-confirm="<?= t('Papierkorb endgültig leeren?') ?>">
+    <input type="hidden" name="action" value="trash_empty">
+    <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
+    <button class="btn btn--ghost btn--small"><?= icon('trash') ?><?= t('Papierkorb leeren') ?></button>
+  </form>
+  <p class="muted"><?= t('Gelöschte Links landen hier und leiten nicht mehr weiter. Wiederherstellen bringt auch den Klick-Zähler zurück.') ?></p>
 </details>
 <?php endif; ?>
 

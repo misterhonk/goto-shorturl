@@ -30,6 +30,12 @@
       else document.documentElement.setAttribute('data-theme',v);
     });
   }
+  // Sprach-Umschalter (lädt mit ?lang= neu, Cookie setzt der Server)
+  var langSel=document.getElementById('lang');
+  if(langSel) langSel.addEventListener('change',function(){
+    var self=langSel.getAttribute('data-self')||'';
+    location.href=self+'?lang='+encodeURIComponent(langSel.value);
+  });
   // Ablaufdatum zurücksetzen
   document.querySelectorAll('[data-clear-date]').forEach(function(b){
     b.addEventListener('click',function(){
@@ -42,7 +48,7 @@
   var boxes=Array.prototype.slice.call(document.querySelectorAll('.rowchk'));
   var selall=document.getElementById('selall'), selcount=document.getElementById('selcount');
   function upd(){ var n=boxes.filter(function(b){return b.checked;}).length;
-    if(selcount) selcount.textContent=n+' markiert';
+    if(selcount){ var tpl=selcount.getAttribute('data-tpl')||'%d markiert'; selcount.textContent=tpl.replace('%d',n); }
     if(selall) selall.checked=(n>0&&n===boxes.length); }
   boxes.forEach(function(b){ b.addEventListener('change',upd); });
   if(selall) selall.addEventListener('change',function(){ boxes.forEach(function(b){ b.checked=selall.checked; }); upd(); });

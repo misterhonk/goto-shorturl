@@ -22,6 +22,10 @@ return [
     // icons.duckduckgo.com (ein externer Abruf je Domain). false = aus.
     'favicons'        => true,
 
+    // Standardsprache der Oberfläche: 'de' oder 'en'. Lässt sich im Admin
+    // jederzeit umschalten (wird pro Browser als Cookie gespeichert).
+    'lang'            => 'de',
+
     // Speicherort der Datendateien (urls.json, clicks.json, .ht_auth.json …).
     // Standard: dieser Ordner. SICHERER ist ein Ordner OBERHALB des Web-Roots,
     // dann sind die Daten selbst ohne Apache/.htaccess nicht abrufbar, z.B.:
