@@ -178,13 +178,19 @@ input.invalid{border-color:#dc2626}
 input.valid:focus{box-shadow:0 0 0 3px rgba(22,163,74,.18)}
 input.invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,.18)}
 
-/* Live-Suche */
-.search{position:relative;margin-bottom:1.1rem}
+/* Such-, Sortier- & Filterleiste */
+.listctl{display:flex;gap:.6rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:1.1rem}
+.listctl .search{flex:1;min-width:14rem;margin-bottom:0}
+.search{position:relative}
 .search .ico{position:absolute;left:.85rem;top:50%;transform:translateY(-50%);width:17px;height:17px;
      color:var(--muted);pointer-events:none}
 .search input{width:100%;padding:.65rem .8rem .65rem 2.4rem;border:1px solid var(--line-strong);
      border-radius:var(--radius-sm);font:inherit;background:var(--card);color:var(--fg);box-shadow:var(--shadow)}
 .search input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--ring)}
+.ctl{display:flex;flex-direction:column;gap:.3rem}
+.ctl-label{font-size:.74rem;font-weight:600;letter-spacing:.02em;color:var(--muted);padding-left:.15rem}
+.ctl select{min-width:9.5rem}
+.toolbtns{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
 
 /* Drag & Drop */
 tr[draggable=true]{cursor:grab}

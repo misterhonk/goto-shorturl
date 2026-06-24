@@ -407,7 +407,7 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
           </td>
         </tr>
         <?php else: ?>
-        <tr draggable="true" data-slug="<?= e($slug) ?>" data-search="<?= e($hay) ?>">
+        <tr draggable="true" data-slug="<?= e($slug) ?>" data-search="<?= e($hay) ?>" data-created="<?= (int) $l['created'] ?>" data-clicks="<?= (int) ($clicks[$slug] ?? 0) ?>" data-expired="<?= is_expired($l['expires']) ? '1' : '0' ?>">
           <td class="cbcell"><input class="rowchk" type="checkbox" name="slugs[]" value="<?= e($slug) ?>" form="bulk"></td>
           <td>
             <div class="linkcell">
@@ -856,9 +856,26 @@ head('GOTO', $nonce);
 </form>
 
 <?php if ($links): ?>
-  <div class="search">
-    <?= icon('search') ?>
-    <input type="text" id="search" placeholder="Suchen … Kürzel, Titel, URL oder Gruppe" autocomplete="off">
+  <div class="listctl">
+    <div class="search">
+      <?= icon('search') ?>
+      <input type="text" id="search" placeholder="Suchen … Kürzel, Titel, URL oder Gruppe" autocomplete="off">
+    </div>
+    <label class="ctl"><span class="ctl-label">Sortieren</span>
+      <select id="sort">
+        <option value="new">Neueste zuerst</option>
+        <option value="old">Älteste zuerst</option>
+        <option value="clicks">Meiste Aufrufe</option>
+        <option value="az">A – Z (Kürzel)</option>
+      </select>
+    </label>
+    <label class="ctl"><span class="ctl-label">Anzeigen</span>
+      <select id="filter">
+        <option value="all">Alle</option>
+        <option value="active">Nur aktive</option>
+        <option value="expired">Nur abgelaufene</option>
+      </select>
+    </label>
   </div>
 <?php endif; ?>
 
@@ -948,7 +965,10 @@ head('GOTO', $nonce);
 
 <details class="tools">
   <summary>Export / Import</summary>
-  <p><a class="btn btn--ghost btn--small" href="<?= e($self) ?>?export=1"><?= icon('download') ?>Export – JSON herunterladen</a></p>
+  <p class="toolbtns">
+    <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?export=1"><?= icon('download') ?>Export – JSON herunterladen</a>
+    <?php if ($links): ?><button type="button" id="qrAllZip" class="btn btn--ghost btn--small"><?= icon('qr') ?>Alle QR-Codes (ZIP)</button><?php endif; ?>
+  </p>
   <form class="bar" method="post" enctype="multipart/form-data" autocomplete="off">
     <input type="hidden" name="action" value="import">
     <input type="hidden" name="csrf" value="<?= e($csrf) ?>">

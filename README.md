@@ -4,6 +4,8 @@ Schlanker, datenbankloser Kurz-URL-Dienst in PHP. Verwaltet Weiterleitungen
 (`deine-domain.de/goto/kürzel` → Ziel-URL), erzeugt QR-Codes lokal im Browser
 und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 
+![GOTO Admin-Oberfläche](screenshot.png)
+
 ---
 
 ## Inhalt
