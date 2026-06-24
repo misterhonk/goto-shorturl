@@ -6,7 +6,11 @@ In 5 Minuten startklar. Ausführliche Doku: siehe [README.md](README.md).
 
 ## 🚀 Produktiv einrichten
 
-1. **Hochladen** — Ordner `goto/` in den Web-Root (z. B. `deine-domain.de/goto/`).
+1. **Upload-Satz bauen & hochladen** — `./deploy.sh` ausführen, dann den
+   **Inhalt** des erzeugten `dist/`-Ordners (inklusive Unterordner `assets/`)
+   in den Web-Root laden (z. B. `deine-domain.de/goto/`). Auf dem Server liegt
+   kein `dist/`, sondern direkt `index.php`, `admin.php`, …, `assets/`.
+   Bei Erstinstallation `urls.example.json` in `urls.json` umbenennen.
 
 2. **Schreibrechte** geben, damit die App Daten speichern kann:
    ```bash

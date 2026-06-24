@@ -65,25 +65,29 @@ Es wird **keine Datenbank** benötigt — alle Daten liegen in JSON-Dateien.
 
 ## Installation
 
-1. Den Ordner `goto/` per FTP/SSH in den Web-Root laden
-   (Pfad frei wählbar; Beispiele hier nutzen `/goto/`).
-2. Sicherstellen, dass der Ordner für den Webserver **beschreibbar** ist
+1. **Upload-Satz bauen:** `./deploy.sh` ausführen. Das legt lokal den Ordner
+   `dist/` mit genau den benötigten Dateien an (Anwendungscode, `lib.php`,
+   Unterordner `assets/`, `.htaccess`; Dev- und Laufzeitdateien bleiben außen vor).
+2. **Den *Inhalt* von `dist/`** per FTP/SSH in den Web-Root laden – also direkt
+   `index.php`, `admin.php`, …, **inklusive des Unterordners `assets/`**
+   (Pfad frei wählbar; Beispiele hier nutzen `/goto/`). Auf dem Server liegt
+   **kein** `dist/`-Ordner, sondern dessen Inhalt. Bei Erstinstallation
+   `urls.example.json` dort in `urls.json` umbenennen.
+   *(Ohne `deploy.sh` geht es auch manuell – dann unbedingt `lib.php` und den
+   Ordner `assets/` mit hochladen.)*
+3. Sicherstellen, dass der Zielordner für den Webserver **beschreibbar** ist
    (für `urls.json`, `clicks.json` usw.):
    ```bash
    chmod 664 urls.json
    chmod 775 .          # falls der Webserver Dateien anlegen muss
    ```
-3. Im Browser `deine-domain.de/goto/admin` öffnen → **Setup-Bildschirm**
+4. Im Browser `deine-domain.de/goto/admin` öffnen → **Setup-Bildschirm**
    erscheint (siehe [Konfiguration](#konfiguration)).
    (`admin.php` leitet automatisch auf die saubere URL `/admin` um.)
 
 **Voraussetzungen:** PHP 8.0+ mit aktiviertem `mod_rewrite` (Apache).
 Ohne `mod_rewrite` funktionieren Links in der Form
 `…/goto/index.php?slug=kürzel`.
-
-> **Tipp:** `./deploy.sh` legt unter `dist/` einen kompletten Upload-Satz an
-> (alle nötigen Dateien inkl. `lib.php`, `goto.css`, `app.js`) – so wird beim
-> FTP-Upload keine Datei vergessen. Laufzeit-/Daten- und Dev-Dateien bleiben außen vor.
 
 ---
 
