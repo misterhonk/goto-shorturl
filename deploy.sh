@@ -15,18 +15,27 @@ cd "$(dirname "$0")"
 
 DEST="${1:-dist}"
 
-# Immer ausliefern (Anwendungscode + Assets + Schutzregeln):
-CODE=(index.php admin.php api.php lib.php qr.js goto.css app.js lang.php .htaccess)
+# Immer ausliefern (Anwendungscode + Schutzregeln) im Wurzelordner:
+CODE=(index.php admin.php api.php lib.php lang.php .htaccess)
+
+# Statische Assets – landen im Unterordner assets/ (Pfad muss erhalten bleiben):
+ASSETS=(assets/goto.css assets/app.js assets/qr.js)
 
 # Nur bei Erstinstallation (nicht überschreiben, falls am Ziel vorhanden):
 FIRST=(config.php urls.example.json)
 
-mkdir -p "$DEST"
+mkdir -p "$DEST" "$DEST/assets"
 
-echo "→ Code/Assets nach $DEST/"
+echo "→ Code nach $DEST/"
 for f in "${CODE[@]}"; do
     [ -e "$f" ] || { echo "FEHLT im Repo: $f" >&2; exit 1; }
     cp -v "$f" "$DEST/"
+done
+
+echo "→ Assets nach $DEST/assets/"
+for f in "${ASSETS[@]}"; do
+    [ -e "$f" ] || { echo "FEHLT im Repo: $f" >&2; exit 1; }
+    cp -v "$f" "$DEST/assets/"
 done
 
 echo "→ Erstinstallations-Dateien"

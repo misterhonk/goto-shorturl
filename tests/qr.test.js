@@ -4,7 +4,7 @@
  */
 'use strict';
 global.window = global;
-require('../qr.js');
+require('../assets/qr.js');
 
 let fails = 0;
 function check(cond, msg) { if (!cond) { console.log('  FAIL:', msg); fails++; } }

@@ -268,7 +268,7 @@ function head(string $title, string $nonce): void {
 <meta name="robots" content="noindex">
 <title><?= e($title) ?></title>
 <script nonce="<?= $nonce ?>">(function(){try{var t=localStorage.getItem('goto-theme');if(t&&t!=='system')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
-<link rel="stylesheet" href="<?= e($dir) ?>goto.css?v=<?= (int) @filemtime(__DIR__ . '/goto.css') ?>">
+<link rel="stylesheet" href="<?= e($dir) ?>assets/goto.css?v=<?= (int) @filemtime(__DIR__ . '/assets/goto.css') ?>">
 </head>
 <body>
 <?php }
@@ -276,8 +276,8 @@ function head(string $title, string $nonce): void {
 function foot(string $nonce): void {
     $dir = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/') . '/';
     ?>
-<script src="<?= e($dir) ?>qr.js" nonce="<?= $nonce ?>"></script>
-<script src="<?= e($dir) ?>app.js?v=<?= (int) @filemtime(__DIR__ . '/app.js') ?>"></script>
+<script src="<?= e($dir) ?>assets/qr.js" nonce="<?= $nonce ?>"></script>
+<script src="<?= e($dir) ?>assets/app.js?v=<?= (int) @filemtime(__DIR__ . '/assets/app.js') ?>"></script>
 </body>
 </html>
 <?php }

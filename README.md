@@ -50,7 +50,7 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 | `lib.php` | Gemeinsame Basis (Bootstrap, Datenmodell, Helfer) für die drei oben |
 | `config.php` | Konfiguration (Passwort-Hash, Timeouts, Datenpfad) |
 | `deploy.sh` | Baut einen vollständigen Upload-Satz in `dist/` *(nur Dev)* |
-| `qr.js` | Eigenständiger QR-Code-Encoder (Client-seitig) |
+| `assets/` | Statisches Frontend: `goto.css`, `app.js`, `qr.js` (QR-Encoder) |
 | `.htaccess` | URL-Rewriting + Schutz sensibler Dateien |
 | `urls.json` | Datenbestand (Gruppen + Links) |
 | `clicks.json` | Aufruf-Zähler *(wird automatisch angelegt)* |

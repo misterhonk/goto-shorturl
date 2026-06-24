@@ -10,6 +10,9 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
   und Daten-Helfer) in neue `lib.php` ausgelagert; `index.php`, `admin.php` und
   `api.php` binden sie ein. Entfernt rund 150 Zeilen Duplikat – das Datenmodell
   ist jetzt an einer einzigen Stelle definiert. Verhalten unverändert.
+- Statische Dateien (`goto.css`, `app.js`, `qr.js`) in den Unterordner `assets/`
+  verschoben (CSP unverändert `'self'`). `deploy.sh` legt sie entsprechend unter
+  `dist/assets/` ab.
 
 ### Hinzugefügt
 - `deploy.sh` baut einen vollständigen Upload-Satz nach `dist/` (verhindert das
