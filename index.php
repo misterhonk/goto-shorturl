@@ -1,23 +1,20 @@
 <?php
 declare(strict_types=1);
 
-@ini_set('display_errors', '0');   // Produktion: keine PHP-Fehler an Besucher ausgeben
-
 /* Öffentliche Weiterleitung:  <ordner>/<kürzel>  ->  Ziel-URL
  *
  * Versteht das flache Alt-Format {slug:url} und das neue Format
  * {groups:[], links:{slug:{url,group,title,expires,created}}}.
  * Zählt Aufrufe DSGVO-konform (nur ein Zähler je Kürzel in clicks.json –
  * keine IPs, Zeitstempel oder User-Agents). Abgelaufene Links sind gesperrt.
+ *
+ * Bewusst schlank gehalten (Hot-Path): liest urls.json gezielt selbst, statt
+ * den vollen normalize_data()-Pfad aus lib.php zu nutzen.
  */
 
-$cfg     = @include __DIR__ . '/config.php';
-$dataDir = rtrim((string) ((is_array($cfg) ? ($cfg['data_dir'] ?? null) : null) ?? __DIR__), '/');
+require __DIR__ . '/lib.php';   // Bootstrap ($cfg, $dataDir, Konstanten) + is_https()
 
-@ini_set('log_errors', '1');
-@ini_set('error_log', $dataDir . '/.ht_error.log');
-
-$file = $dataDir . '/urls.json';
+$file = URLS_FILE;
 $raw  = json_decode((string) @file_get_contents($file), true);
 if (!is_array($raw) && is_file($file . '.bak')) {          // Fallback bei beschädigter Datei
     $raw = json_decode((string) @file_get_contents($file . '.bak'), true);
@@ -55,14 +52,11 @@ if ($target !== null) {
     if (!in_array($scheme, ['http', 'https'], true)) $target = null;
 }
 
-$https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-      || ((string) ($_SERVER['SERVER_PORT'] ?? '') === '443')
-      || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https');
-if ($https) header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+if (is_https()) header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
 
 if ($target !== null) {
     // Aufruf zählen (reiner Zähler, datensparsam)
-    $fp = @fopen($dataDir . '/clicks.json', 'c+');
+    $fp = @fopen(CLICKS_FILE, 'c+');
     if ($fp && flock($fp, LOCK_EX)) {
         $cur    = stream_get_contents($fp);
         $clicks = $cur ? json_decode($cur, true) : [];

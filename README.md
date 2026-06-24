@@ -45,9 +45,11 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 | Datei | Zweck |
 |---|---|
 | `index.php` | Öffentliche Weiterleitung + Klick-Zähler + Ablauf-Prüfung |
-| `admin.php` | Komplettes Admin-Interface und gesamte Logik |
+| `admin.php` | Komplettes Admin-Interface und Verwaltungslogik |
 | `api.php` | HTTP-API zum Anlegen von Kurz-URLs (Token-Auth) |
+| `lib.php` | Gemeinsame Basis (Bootstrap, Datenmodell, Helfer) für die drei oben |
 | `config.php` | Konfiguration (Passwort-Hash, Timeouts, Datenpfad) |
+| `deploy.sh` | Baut einen vollständigen Upload-Satz in `dist/` *(nur Dev)* |
 | `qr.js` | Eigenständiger QR-Code-Encoder (Client-seitig) |
 | `.htaccess` | URL-Rewriting + Schutz sensibler Dateien |
 | `urls.json` | Datenbestand (Gruppen + Links) |
@@ -78,6 +80,10 @@ Es wird **keine Datenbank** benötigt — alle Daten liegen in JSON-Dateien.
 **Voraussetzungen:** PHP 8.0+ mit aktiviertem `mod_rewrite` (Apache).
 Ohne `mod_rewrite` funktionieren Links in der Form
 `…/goto/index.php?slug=kürzel`.
+
+> **Tipp:** `./deploy.sh` legt unter `dist/` einen kompletten Upload-Satz an
+> (alle nötigen Dateien inkl. `lib.php`, `goto.css`, `app.js`) – so wird beim
+> FTP-Upload keine Datei vergessen. Laufzeit-/Daten- und Dev-Dateien bleiben außen vor.
 
 ---
 

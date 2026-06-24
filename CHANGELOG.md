@@ -5,6 +5,16 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+### Geändert
+- **Interne Aufräumung:** gemeinsame Basis (Bootstrap, Datenmodell, Validierungs-
+  und Daten-Helfer) in neue `lib.php` ausgelagert; `index.php`, `admin.php` und
+  `api.php` binden sie ein. Entfernt rund 150 Zeilen Duplikat – das Datenmodell
+  ist jetzt an einer einzigen Stelle definiert. Verhalten unverändert.
+
+### Hinzugefügt
+- `deploy.sh` baut einen vollständigen Upload-Satz nach `dist/` (verhindert das
+  versehentliche Vergessen einzelner Dateien beim FTP-Upload).
+
 ## [0.2.0] – 2026-06-24
 
 ### Hinzugefügt
