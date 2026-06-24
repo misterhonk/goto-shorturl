@@ -3,6 +3,7 @@ urls.json
 clicks.json
 .ht_attempts.json
 .ht_tokens.json
+.ht_apitokens.json
 .ht_auth.json
 .ht_trash.json
 .ht_error.log

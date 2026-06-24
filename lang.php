@@ -148,6 +148,28 @@ return [
     'Passwort geändert.'                 => 'Password changed.',
     'Zu viele Fehlversuche. Bitte %d Min. warten.' => 'Too many failed attempts. Please wait %d min.',
 
+    // API-Zugang
+    'API-Zugang'                         => 'API access',
+    'Token erstellt – jetzt kopieren, er wird nur dieses eine Mal angezeigt:'
+        => 'Token created – copy it now, it is shown only this once:',
+    'Token kopieren'                     => 'Copy token',
+    'Token-Name'                         => 'Token name',
+    'z. B. Doku-Skript'                  => 'e.g. docs script',
+    'Token erstellen'                    => 'Create token',
+    'Widerrufen'                         => 'Revoke',
+    'erstellt %s'                        => 'created %s',
+    'zuletzt %s'                         => 'last used %s',
+    'nie genutzt'                        => 'never used',
+    '%d Aufrufe'                         => '%d calls',
+    'Token „%s“ widerrufen?'             => 'Revoke token “%s”?',
+    'Kurz-URLs per Skript anlegen (POST an %sapi.php):'
+        => 'Create short URLs via script (POST to %sapi.php):',
+    'Felder: url (Pflicht), slug, group, title, expires (JJJJ-MM-TT). Antwort als JSON, Limit %d Anfragen/Minute je Token.'
+        => 'Fields: url (required), slug, group, title, expires (YYYY-MM-DD). Response is JSON, limit %d requests/minute per token.',
+    'API-Token „%s“ erstellt.'          => 'API token “%s” created.',
+    'API-Token widerrufen.'             => 'API token revoked.',
+    'Bitte einen Namen für den Token angeben.' => 'Please provide a name for the token.',
+
     // Öffentliche Fehlerseiten (index.php)
     'Nicht gefunden'                     => 'Not found',
     'Abgelaufen'                         => 'Expired',

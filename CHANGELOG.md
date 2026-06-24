@@ -5,7 +5,13 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+## [0.2.0] – 2026-06-24
+
 ### Hinzugefügt
+- **HTTP-API** (`api.php`) zum Anlegen von Kurz-URLs per Skript, abgesichert
+  über **API-Token** (Bearer). Token werden im Admin unter **„API-Zugang"**
+  erstellt/widerrufen, serverseitig nur als Hash gespeichert und einmalig im
+  Klartext angezeigt. Inkl. **Rate-Limit** (120 Anfragen/Min. je Token).
 - **Papierkorb**: gelöschte Links landen im Papierkorb und lassen sich samt
   Klick-Zähler **wiederherstellen** oder endgültig löschen.
 - **Klick-Statistik** als Mini-**Sparkline** (Verlauf der letzten 14 Tage,
@@ -24,6 +30,9 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 - **GitHub-Actions-CI** (PHP-/JS-Syntaxprüfung + QR-Encoder-Tests).
 
 ### Geändert
+- **Öffentliche Fehlerseiten** (`index.php`, 404/410) sind jetzt ebenfalls
+  **mehrsprachig** (DE/EN, gesteuert über `goto_lang`-Cookie bzw. `config.php`);
+  die Sprache wird nur im Fehlerfall geladen, der Weiterleitungs-Pfad bleibt schlank.
 - CSS/JS in `goto.css` und `app.js` ausgelagert (Browser-Caching, schlankeres `admin.php`).
 - `.htaccess` sperrt nun auch `.bak`/`.tmp`; Lockout-Datei gegen Aufblähen begrenzt.
 
@@ -39,3 +48,7 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 - Modernes, responsives UI mit Theme-Umschalter (System/Hell/Dunkel),
   Drag & Drop, Live-Suche sowie Import/Export.
 - Datenbanklos – alle Daten in JSON-Dateien.
+
+[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/misterhonk/goto-shorturl/releases/tag/v0.1.0

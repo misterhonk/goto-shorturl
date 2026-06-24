@@ -91,17 +91,28 @@ if ($target !== null) {
     exit;
 }
 
+// Sprache nur im Fehlerfall laden (Hot-Path der Weiterleitung bleibt schlank).
+// Wie admin.php: Cookie > config.php > Deutsch; Übersetzung über lang.php.
+$LANG_EN = (array) (@include __DIR__ . '/lang.php');
+$lang = 'de';
+if (in_array((string) ($_COOKIE['goto_lang'] ?? ''), ['de', 'en'], true))                 $lang = (string) $_COOKIE['goto_lang'];
+elseif (is_array($cfg) && in_array((string) ($cfg['lang'] ?? ''), ['de', 'en'], true))     $lang = (string) $cfg['lang'];
+$t = function (string $de) use ($lang, $LANG_EN): string {
+    return ($lang === 'en' && isset($LANG_EN[$de])) ? $LANG_EN[$de] : $de;
+};
+$ee = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+
 http_response_code($expired ? 410 : 404);
 header('Content-Type: text/html; charset=utf-8');
 $msg = $expired
-    ? 'Dieser Link ist abgelaufen.'
-    : 'Diese Kurz-URL existiert nicht (mehr).';
+    ? $t('Dieser Link ist abgelaufen.')
+    : $t('Diese Kurz-URL existiert nicht (mehr).');
 ?><!DOCTYPE html>
-<html lang="de">
+<html lang="<?= $ee($lang) ?>">
 <meta charset="utf-8">
-<title><?= $expired ? 'Abgelaufen' : 'Nicht gefunden' ?></title>
+<title><?= $ee($expired ? $t('Abgelaufen') : $t('Nicht gefunden')) ?></title>
 <body style="font:16px/1.5 system-ui,sans-serif;max-width:30rem;margin:4rem auto;padding:0 1rem;color:#1f2328">
-  <h1 style="font-size:1.2rem"><?= $expired ? 'Link abgelaufen' : 'Kurz-URL nicht gefunden' ?></h1>
-  <p style="color:#6b7280"><?= $msg ?></p>
+  <h1 style="font-size:1.2rem"><?= $ee($expired ? $t('Link abgelaufen') : $t('Kurz-URL nicht gefunden')) ?></h1>
+  <p style="color:#6b7280"><?= $ee($msg) ?></p>
 </body>
 </html>

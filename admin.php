@@ -31,6 +31,7 @@ define('ATTEMPTS_FILE', $dataDir . '/.ht_attempts.json');
 define('TOKENS_FILE',   $dataDir . '/.ht_tokens.json');
 define('AUTH_FILE',     $dataDir . '/.ht_auth.json');
 define('TRASH_FILE',    $dataDir . '/.ht_trash.json');
+define('API_TOKENS_FILE', $dataDir . '/.ht_apitokens.json');
 define('SHOW_FAVICONS', (bool) ($cfg['favicons'] ?? true));
 
 // Sprache: Cookie > config.php > Deutsch. Übersetzung über lang.php (Fallback: Deutsch).
@@ -173,6 +174,9 @@ function clicks_days(array $clicks, string $slug): array {
 
 function load_trash(): array  { return load_json(TRASH_FILE); }
 function save_trash(array $t): bool { return save_json(TRASH_FILE, $t); }
+
+function load_api_tokens(): array  { return load_json(API_TOKENS_FILE); }
+function save_api_tokens(array $t): bool { return save_json(API_TOKENS_FILE, $t); }
 
 // CSV importieren. Kopfzeile mit Spalten url,slug,group,title,expires (Reihenfolge egal).
 // Ohne Kopfzeile: erste Spalte = url, zweite = slug usw. Trenner , oder ; wird erkannt.
@@ -669,7 +673,7 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
             flash(t('Bitte eine gültige http(s)-URL angeben.'));
         } else {
             if ($slug === '') $slug = random_slug($data['links']);
-            if (in_array($slug, ['admin', 'index'], true)) {
+            if (in_array($slug, ['admin', 'index', 'api'], true)) {
                 flash(t('„%s“ ist reserviert – bitte ein anderes Kürzel wählen.', $slug));
             } elseif (isset($data['links'][$slug])) {
                 flash(t('Kürzel „%s“ existiert bereits.', $slug));
@@ -686,7 +690,7 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
         if (!isset($data['links'][$slug]))                    flash(t('Unbekanntes Kürzel.'));
         elseif (!valid_url($url))                             flash(t('Bitte eine gültige Ziel-URL angeben.'));
         elseif ($newslug === '')                              flash(t('Bitte eine Short-URL angeben.'));
-        elseif (in_array($newslug, ['admin', 'index'], true)) flash(t('„%s“ ist reserviert.', $newslug));
+        elseif (in_array($newslug, ['admin', 'index', 'api'], true)) flash(t('„%s“ ist reserviert.', $newslug));
         elseif ($newslug !== $slug && isset($data['links'][$newslug])) flash(t('„%s“ ist bereits vergeben.', $newslug));
         else {
             $entry = $data['links'][$slug];
@@ -833,6 +837,31 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
     } elseif ($action === 'trash_empty') {
         save_trash([]);
         flash(t('Papierkorb geleert.'), 'success');
+    } elseif ($action === 'token_create') {
+        $name = clean_text((string) ($_POST['name'] ?? ''), 40);
+        if ($name === '') {
+            flash(t('Bitte einen Namen für den Token angeben.'));
+        } else {
+            $tokens = load_api_tokens();
+            do { $tid = bin2hex(random_bytes(6)); } while (isset($tokens[$tid]));
+            $secret = bin2hex(random_bytes(24));
+            $tokens[$tid] = ['name' => $name, 'h' => hash('sha256', $secret),
+                             'created' => time(), 'used' => 0, 'calls' => 0];
+            if (save_api_tokens($tokens)) {
+                $_SESSION['new_token'] = 'goto_' . $tid . '_' . $secret;
+                flash(t('API-Token „%s“ erstellt.', $name), 'success');
+            } else {
+                flash(t('Konnte nicht speichern – Schreibrechte prüfen.'));
+            }
+        }
+    } elseif ($action === 'token_revoke') {
+        $tid    = preg_replace('/[^0-9a-f]/', '', (string) ($_POST['id'] ?? ''));
+        $tokens = load_api_tokens();
+        if ($tid !== '' && isset($tokens[$tid])) {
+            unset($tokens[$tid]);
+            save_api_tokens($tokens);
+            flash(t('API-Token widerrufen.'), 'success');
+        }
     }
     redirect($self);
 }
@@ -1116,6 +1145,57 @@ head('GOTO', $nonce);
   </form>
 </details>
 <?php endif; ?>
+
+<?php
+$apiTokens = load_api_tokens();
+$newToken  = $_SESSION['new_token'] ?? null;
+unset($_SESSION['new_token']);
+?>
+<details class="tools"<?= $newToken ? ' open' : '' ?>>
+  <summary><?= t('API-Zugang') ?><?php if ($apiTokens): ?> <span class="count"><?= count($apiTokens) ?></span><?php endif; ?></summary>
+  <?php if ($newToken): ?>
+    <p class="muted"><?= t('Token erstellt – jetzt kopieren, er wird nur dieses eine Mal angezeigt:') ?></p>
+    <div class="bar bar--end">
+      <textarea class="hashbox grow" rows="2" readonly><?= e($newToken) ?></textarea>
+      <button type="button" class="btn btn--primary btn--small" data-copy="<?= e($newToken) ?>"><?= icon('copy') ?><?= t('Token kopieren') ?></button>
+    </div>
+  <?php endif; ?>
+  <?php if ($apiTokens): ?>
+  <table class="trashlist">
+    <?php foreach ($apiTokens as $tid => $tk): $tname = (string) ($tk['name'] ?? $tid); ?>
+    <tr>
+      <td><span class="slugmono"><?= e($tname) ?></span></td>
+      <td class="muted nowrap"><?= t('erstellt %s', date('d.m.Y', (int) ($tk['created'] ?? 0))) ?></td>
+      <td class="muted nowrap"><?= ($tk['used'] ?? 0) ? t('zuletzt %s', date('d.m.Y', (int) $tk['used'])) : t('nie genutzt') ?></td>
+      <td class="muted nowrap"><?= t('%d Aufrufe', (int) ($tk['calls'] ?? 0)) ?></td>
+      <td class="actions">
+        <form class="inline" method="post" data-confirm="<?= e(t('Token „%s“ widerrufen?', $tname)) ?>">
+          <input type="hidden" name="action" value="token_revoke">
+          <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
+          <input type="hidden" name="id" value="<?= e((string) $tid) ?>">
+          <button class="btn btn--danger btn--small" title="<?= t('Widerrufen') ?>" aria-label="<?= t('Widerrufen') ?>"><?= icon('trash') ?><?= t('Widerrufen') ?></button>
+        </form>
+      </td>
+    </tr>
+    <?php endforeach; ?>
+  </table>
+  <?php endif; ?>
+  <form class="bar bar--end" method="post" autocomplete="off">
+    <input type="hidden" name="action" value="token_create">
+    <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
+    <label class="field grow">
+      <span class="field-label"><?= t('Token-Name') ?></span>
+      <input type="text" name="name" maxlength="40" placeholder="<?= t('z. B. Doku-Skript') ?>" required>
+    </label>
+    <button class="btn btn--ghost"><?= icon('plus') ?><?= t('Token erstellen') ?></button>
+  </form>
+  <p class="muted"><?= t('Kurz-URLs per Skript anlegen (POST an %sapi.php):', e($base)) ?></p>
+  <textarea class="hashbox" rows="4" readonly>curl -X POST <?= e($base) ?>api.php \
+  -H "Authorization: Bearer goto_…" \
+  -d "url=https://ziel-adresse.de/lange/seite" \
+  -d "slug=mein-kuerzel"</textarea>
+  <p class="muted"><?= t('Felder: url (Pflicht), slug, group, title, expires (JJJJ-MM-TT). Antwort als JSON, Limit %d Anfragen/Minute je Token.', 120) ?></p>
+</details>
 
 <?php if ($trash): ?>
 <details class="tools">

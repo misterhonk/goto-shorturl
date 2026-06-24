@@ -13,6 +13,15 @@ Options -Indexes
     Require all denied
 </Files>
 
+# Authorization-Header (Bearer-Token) an PHP durchreichen – manche Hoster
+# (CGI/FPM) entfernen ihn sonst, dann schlägt die API-Token-Prüfung fehl.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+</IfModule>
+SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+
 # =====================================================================
 #  Unbekannte Pfade (= Kürzel) an index.php weiterreichen.
 #  Es genügt EINE der beiden Varianten – A ist Standard und läuft auf

@@ -15,6 +15,7 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 - [Installation](#installation)
 - [Konfiguration](#konfiguration)
 - [Bedienung](#bedienung)
+- [API](#api)
 - [Datenmodell](#datenmodell)
 - [Sicherheit](#sicherheit)
 - [Lokal testen (Docker)](#lokal-testen-docker)
@@ -32,6 +33,7 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 - **Titel / Notiz** je Link, **Ablaufdatum** (abgelaufene Links liefern `410 Gone`)
 - **Live-Suche**, **Bulk-Aktionen** (verschieben / löschen / Zähler zurücksetzen)
 - **Import / Export** als JSON
+- **HTTP-API** zum Anlegen von Links per Skript, abgesichert über **API-Token**
 - **Inline-Validierung** der URL, **Toast-Meldungen**
 - **„Angemeldet bleiben"** (sichere Token)
 - Modernes, responsives UI inkl. **Dark Mode**
@@ -44,6 +46,7 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 |---|---|
 | `index.php` | Öffentliche Weiterleitung + Klick-Zähler + Ablauf-Prüfung |
 | `admin.php` | Komplettes Admin-Interface und gesamte Logik |
+| `api.php` | HTTP-API zum Anlegen von Kurz-URLs (Token-Auth) |
 | `config.php` | Konfiguration (Passwort-Hash, Timeouts, Datenpfad) |
 | `qr.js` | Eigenständiger QR-Code-Encoder (Client-seitig) |
 | `.htaccess` | URL-Rewriting + Schutz sensibler Dateien |
@@ -51,6 +54,7 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 | `clicks.json` | Aufruf-Zähler *(wird automatisch angelegt)* |
 | `.ht_attempts.json` | Login-Fehlversuche (Rate-Limiting) *(automatisch)* |
 | `.ht_tokens.json` | „Angemeldet bleiben"-Token, nur gehasht *(automatisch)* |
+| `.ht_apitokens.json` | API-Token, nur gehasht *(automatisch)* |
 | `.ht_auth.json` | Passwort-Hash (vom Setup gesetzt) *(automatisch)* |
 
 Es wird **keine Datenbank** benötigt — alle Daten liegen in JSON-Dateien.
@@ -144,6 +148,57 @@ Admin-Oberfläche: `deine-domain.de/goto/admin`
 
 ---
 
+## API
+
+Kurz-URLs lassen sich auch per HTTP-Schnittstelle anlegen — praktisch für
+Skripte oder andere Tools.
+
+**Token erstellen:** im Admin unter **„API-Zugang"** einen Token mit Namen
+anlegen. Der Token wird **nur einmalig** im Klartext angezeigt (serverseitig
+liegt nur ein SHA-256-Hash) — also gleich sicher notieren. Nicht mehr
+benötigte Token jederzeit **widerrufen**.
+
+**Endpoint:** `POST deine-domain.de/goto/api.php`
+**Authentifizierung:** `Authorization: Bearer goto_…`
+(alternativ Header `X-Api-Key:` oder Feld `token=`).
+
+| Feld | Pflicht | Beschreibung |
+|---|---|---|
+| `url` | ✓ | Ziel-URL (`http`/`https`) |
+| `slug` | – | Wunsch-Kürzel; leer = zufällig |
+| `group` | – | Gruppe (wird bei Bedarf angelegt) |
+| `title` | – | Titel / Notiz |
+| `expires` | – | Ablaufdatum `JJJJ-MM-TT` |
+
+Daten als Formularfelder **oder** JSON-Body (`Content-Type: application/json`).
+
+```bash
+curl -X POST https://deine-domain.de/goto/api.php \
+  -H "Authorization: Bearer goto_…" \
+  -d "url=https://ziel-adresse.de/lange/seite" \
+  -d "slug=mein-kuerzel"
+```
+
+Antwort bei Erfolg (`201`):
+
+```json
+{ "ok": true, "slug": "mein-kuerzel",
+  "short_url": "https://deine-domain.de/goto/mein-kuerzel",
+  "url": "https://ziel-adresse.de/lange/seite",
+  "group": "", "title": "", "expires": "" }
+```
+
+Fehler liefern passenden Status + `{ "ok": false, "error": "…" }`:
+`401` (Token fehlt/ungültig), `422` (URL ungültig), `409` (Kürzel vergeben
+oder reserviert), `429` (Rate-Limit, **120 Anfragen/Min.** je Token),
+`405` (nur `POST`).
+
+> Auf manchen Hostern (CGI/FPM) wird der `Authorization`-Header entfernt; die
+> mitgelieferte `.htaccess` reicht ihn an PHP durch. Klappt das nicht, den
+> Token als Header `X-Api-Key:` oder Feld `token=` senden.
+
+---
+
 ## Datenmodell
 
 `urls.json`:
@@ -183,6 +238,8 @@ Admin-Oberfläche: `deine-domain.de/goto/admin`
   `session_regenerate_id` gegen Session-Fixation, Idle-Timeout
 - **„Angemeldet bleiben"**: Selector\:Validator-Token, serverseitig nur als
   Hash gespeichert, bei jeder Nutzung rotiert, beim Logout gelöscht
+- **API-Token**: serverseitig nur als SHA-256-Hash gespeichert, einmalig im
+  Klartext angezeigt, jederzeit widerrufbar, eigenes Rate-Limit je Token
 - **Content-Security-Policy** (Nonce-basiert, kein `unsafe-inline`) plus
   `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, **HSTS**
 - **URL-Validierung**: nur `http`/`https` werden gespeichert und weitergeleitet
