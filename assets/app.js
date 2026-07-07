@@ -142,6 +142,92 @@
   }
   function hideToast(t){ t.classList.add('toast--out'); setTimeout(function(){ if(t.parentNode) t.remove(); },350); }
 
+  // Klick-Verlauf-Dialog (Balken-Chart der letzten N Tage, Daten aus data-days)
+  var cdlg=document.getElementById('clkdlg');
+  if(cdlg){
+    var cChartEl=document.getElementById('clkChart'), cTipEl=document.getElementById('clkTip'),
+        cTitle=document.getElementById('clkTitle'), cTotal=document.getElementById('clkTotal'),
+        cToday=document.getElementById('clkToday'), cEmpty=document.getElementById('clkEmpty'),
+        cSeg=document.getElementById('clkRange');
+    var cDays={}, cN=14, cLabel=cTitle.textContent,
+        cLang=cdlg.getAttribute('data-lang')||'de',
+        cCalls=cdlg.getAttribute('data-l-calls')||'Aufrufe';
+    function isoLocal(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+    function fmtDay(iso){ try{ return new Date(iso+'T12:00:00')
+        .toLocaleDateString(cLang==='en'?'en-GB':'de-DE',{weekday:'short',day:'numeric',month:'short'});
+      }catch(_){ return iso; } }
+    function renderChart(){
+      var n=cN, W=cChartEl.clientWidth||460, H=180, padT=20, padB=20;
+      var keys=[], vals=[], sum=0;
+      for(var i=n-1;i>=0;i--){ var k=isoLocal(new Date(Date.now()-i*86400000));
+        keys.push(k); var v=+(cDays[k]||0); vals.push(v); sum+=v; }
+      var max=Math.max.apply(null,vals.concat([1]));
+      var plotH=H-padT-padB, step=W/n, gap=Math.min(3,Math.max(1,step*.2)), bw=Math.max(1,step-gap);
+      var ns='http://www.w3.org/2000/svg';
+      function el(tag,attrs){ var e=document.createElementNS(ns,tag);
+        for(var a in attrs) e.setAttribute(a,attrs[a]); return e; }
+      var svg=el('svg',{viewBox:'0 0 '+W+' '+H});
+      // Zurückhaltendes Raster: Grundlinie + gestrichelte Maximal-Linie mit Wert
+      svg.appendChild(el('line',{x1:0,y1:padT,x2:W,y2:padT,'class':'cgrid','stroke-dasharray':'3 3'}));
+      svg.appendChild(el('line',{x1:0,y1:H-padB,x2:W,y2:H-padB,'class':'cgrid'}));
+      var maxLab=el('text',{x:0,y:padT-6,'class':'clab'}); maxLab.textContent=max; svg.appendChild(maxLab);
+      // Dünne Balken, oben abgerundet, an der Grundlinie verankert
+      var bars=[];
+      for(var b1=0;b1<n;b1++){
+        var h=vals[b1]/max*plotH, r=null;
+        if(vals[b1]>0){ r=el('rect',{x:b1*step+gap/2,y:H-padB-h,width:bw,height:h,
+          rx:Math.min(3,bw/2),'class':'cbar'}); svg.appendChild(r); }
+        bars.push(r);
+      }
+      // X-Beschriftung: erster / mittlerer / letzter Tag
+      [[0,'start'],[Math.floor(n/2),'middle'],[n-1,'end']].forEach(function(p){
+        var tx=el('text',{x:p[0]*step+step/2,y:H-6,'class':'clab','text-anchor':p[1]});
+        tx.textContent=fmtDay(keys[p[0]]); svg.appendChild(tx);
+      });
+      // Hover: spaltenbreite Trefferflächen (größer als der Balken) + Tooltip
+      for(var b2=0;b2<n;b2++)(function(i){
+        var hit=el('rect',{x:i*step,y:0,width:step,height:H,fill:'transparent'});
+        hit.addEventListener('mouseenter',function(){
+          if(bars[i]) bars[i].classList.add('hot');
+          cTipEl.textContent=fmtDay(keys[i])+' · '+vals[i]+' '+cCalls;
+          var box=cChartEl.getBoundingClientRect();
+          var px=(i*step+step/2)/W*box.width;
+          var py=(H-padB-(vals[i]/max*plotH))/H*box.height;
+          cTipEl.style.left=Math.max(46,Math.min(box.width-46,px))+'px';
+          cTipEl.style.top=Math.max(26,py)+'px';
+          cTipEl.classList.add('on');
+        });
+        hit.addEventListener('mouseleave',function(){
+          if(bars[i]) bars[i].classList.remove('hot');
+          cTipEl.classList.remove('on');
+        });
+        svg.appendChild(hit);
+      })(b2);
+      cChartEl.innerHTML=''; cChartEl.appendChild(svg);
+      cEmpty.hidden=sum>0;
+    }
+    document.querySelectorAll('button.clicks[data-days]').forEach(function(b){
+      b.addEventListener('click',function(){
+        try{ cDays=JSON.parse(b.getAttribute('data-days'))||{}; }catch(_){ cDays={}; }
+        if(Array.isArray(cDays)) cDays={};
+        cTitle.textContent=cLabel+': '+(b.getAttribute('data-slug')||'');
+        cTotal.textContent=b.getAttribute('data-total')||'0';
+        cToday.textContent=String(cDays[isoLocal(new Date())]||0);
+        if(cdlg.showModal) cdlg.showModal(); else cdlg.setAttribute('open','');
+        renderChart();
+      });
+    });
+    cSeg.querySelectorAll('button').forEach(function(b){
+      b.addEventListener('click',function(){
+        cN=parseInt(b.getAttribute('data-n'),10)||14;
+        cSeg.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on',x===b); });
+        renderChart();
+      });
+    });
+    document.getElementById('clkClose').addEventListener('click',function(){ cdlg.close(); });
+    cdlg.addEventListener('click',function(e){ if(e.target===cdlg) cdlg.close(); });
+  }
+
   // QR-Dialog
   var dlg=document.getElementById('qrdlg');
   if(dlg && window.QRCodeGen){

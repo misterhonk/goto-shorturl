@@ -403,7 +403,7 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
             </div>
           </td>
           <td class="target" title="<?= e($url) ?>"><?= e($url) ?><?php if ($l['expires'] !== ''): ?><span class="chip <?= is_expired($l['expires']) ? 'chip--exp' : 'chip--date' ?>"><?= icon('calendar') ?><?= is_expired($l['expires']) ? 'abgelaufen' : e($l['expires']) ?></span><?php endif; ?></td>
-          <td class="clickcell"><span class="clicks" title="<?= t('Aufrufe gesamt (anonym) – Verlauf der letzten 14 Tage') ?>"><?php $spark = sparkline_svg(clicks_days($clicks, $slug)); echo $spark ?: icon('bars'); ?><?= clicks_total($clicks, $slug) ?></span></td>
+          <td class="clickcell"><button type="button" class="clicks" data-slug="<?= e($slug) ?>" data-total="<?= clicks_total($clicks, $slug) ?>" data-days="<?= e(json_encode(clicks_days($clicks, $slug), JSON_FORCE_OBJECT)) ?>" title="<?= t('Klick-Verlauf anzeigen') ?>" aria-label="<?= t('Klick-Verlauf anzeigen') ?>"><?php $spark = sparkline_svg(clicks_days($clicks, $slug)); echo $spark ?: icon('bars'); ?><?= clicks_total($clicks, $slug) ?></button></td>
           <td class="movecell">
             <form method="post" class="inline">
               <input type="hidden" name="action" value="move">
@@ -834,6 +834,32 @@ head('GOTO', $nonce);
 
 <?php render_toasts($flashMsg ? [$flashMsg] : []); ?>
 
+<?php if ($links):
+    // Kennzahlen aus clicks.json (rein lokal, DSGVO-konform)
+    $statToday = date('Y-m-d');
+    $statTotal = 0; $statNow = 0; $statWeek = 0; $topSlug = ''; $topN = 0;
+    $weekKeys = [];
+    for ($i = 0; $i < 7; $i++) $weekKeys[] = date('Y-m-d', time() - $i * 86400);
+    foreach ($links as $s => $l) {
+        $n = clicks_total($clicks, $s);
+        $statTotal += $n;
+        if ($n > $topN) { $topN = $n; $topSlug = $s; }
+        $d = clicks_days($clicks, $s);
+        $statNow += (int) ($d[$statToday] ?? 0);
+        foreach ($weekKeys as $k) $statWeek += (int) ($d[$k] ?? 0);
+    }
+?>
+<div class="stats">
+  <div class="stat"><span class="stat-label"><?= t('Links') ?></span><div class="stat-value"><?= count($links) ?></div></div>
+  <div class="stat"><span class="stat-label"><?= t('Aufrufe gesamt') ?></span><div class="stat-value"><?= $statTotal ?></div></div>
+  <div class="stat"><span class="stat-label"><?= t('Heute') ?></span><div class="stat-value"><?= $statNow ?></div></div>
+  <div class="stat"><span class="stat-label"><?= t('Letzte 7 Tage') ?></span><div class="stat-value"><?= $statWeek ?></div></div>
+  <?php if ($topN > 0): ?>
+  <div class="stat"><span class="stat-label"><?= t('Top-Link') ?></span><div class="stat-value stat-value--slug"><?= e($topSlug) ?></div><span class="stat-sub"><?= t('%d Aufrufe', $topN) ?></span></div>
+  <?php endif; ?>
+</div>
+<?php endif; ?>
+
 <div class="panel">
   <form method="post" autocomplete="off">
     <input type="hidden" name="action" value="add">
@@ -1005,6 +1031,29 @@ head('GOTO', $nonce);
         <button type="button" class="btn btn--primary btn--small" id="qrSvg"><?= icon('download') ?>SVG</button>
       </div>
     </div>
+  </div>
+</dialog>
+
+<dialog id="clkdlg" class="qrdlg clkdlg" data-l-calls="<?= e(t('Aufrufe')) ?>" data-lang="<?= e($lang) ?>">
+  <div class="qrdlg-head">
+    <strong id="clkTitle"><?= t('Klick-Verlauf') ?></strong>
+    <button type="button" class="btn btn--ghost btn--small" id="clkClose"><?= icon('x') ?><?= t('Schließen') ?></button>
+  </div>
+  <div class="clkbody">
+    <div class="clkmeta">
+      <div><b id="clkTotal">0</b><span><?= t('Gesamt') ?></span></div>
+      <div><b id="clkToday">0</b><span><?= t('Heute') ?></span></div>
+      <div class="seg" id="clkRange" role="group" aria-label="<?= t('Zeitraum') ?>">
+        <button type="button" data-n="14" class="on">14</button>
+        <button type="button" data-n="30">30</button>
+        <button type="button" data-n="90">90</button>
+      </div>
+    </div>
+    <div class="chartwrap">
+      <div id="clkChart" class="chart" aria-hidden="true"></div>
+      <div id="clkTip" class="charttip"></div>
+    </div>
+    <p class="muted" id="clkEmpty" hidden><?= t('Noch keine Aufrufe im Zeitraum.') ?></p>
   </div>
 </dialog>
 

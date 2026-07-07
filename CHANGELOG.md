@@ -6,6 +6,11 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 ## [Unreleased]
 
 ### Geändert
+- **UI-Redesign im Apple-Look** (HIG-inspiriert): ruhige Flächen (`#f5f5f7`),
+  Hairline-Borders, **Glas-Topbar** (sticky, Blur), **Pill-Buttons**, Apple-Blau
+  als Akzent, weiche gestaffelte Schatten, Segmented Controls, eigene
+  Select-Chevrons, sanfte Micro-Interactions; Dark Mode mit `#1c1c1e`-Flächen.
+  Verhalten und Struktur unverändert (nur `goto.css` + additive Elemente).
 - **Interne Aufräumung:** gemeinsame Basis (Bootstrap, Datenmodell, Validierungs-
   und Daten-Helfer) in neue `lib.php` ausgelagert; `index.php`, `admin.php` und
   `api.php` binden sie ein. Entfernt rund 150 Zeilen Duplikat – das Datenmodell
@@ -15,6 +20,10 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
   `dist/assets/` ab.
 
 ### Hinzugefügt
+- **Statistik-Kacheln** im Admin: Links gesamt, Aufrufe gesamt / heute /
+  letzte 7 Tage sowie Top-Link auf einen Blick (rein lokal aus `clicks.json`).
+- **Klick-Verlauf-Dialog:** Klick auf die Sparkline öffnet ein Balken-Diagramm
+  der letzten 14 / 30 / 90 Tage (umschaltbar) mit Hover-Tooltip je Tag.
 - **Favicon & Browser-Meta:** Favicon (SVG + ICO + Apple-Touch-Icon im
   Marken-Design) und `theme-color` (hell/dunkel) für Admin- und öffentliche Seiten.
 - **Social-Media-Vorschau:** Link-Preview-Bots (WhatsApp, Slack, Telegram,

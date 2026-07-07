@@ -170,6 +170,18 @@ return [
     'API-Token widerrufen.'             => 'API token revoked.',
     'Bitte einen Namen für den Token angeben.' => 'Please provide a name for the token.',
 
+    // Statistik-Kacheln & Klick-Verlauf
+    'Aufrufe gesamt'                     => 'Total clicks',
+    'Heute'                              => 'Today',
+    'Letzte 7 Tage'                      => 'Last 7 days',
+    'Top-Link'                           => 'Top link',
+    'Gesamt'                             => 'Total',
+    'Aufrufe'                            => 'Clicks',
+    'Klick-Verlauf'                      => 'Click history',
+    'Klick-Verlauf anzeigen'             => 'Show click history',
+    'Noch keine Aufrufe im Zeitraum.'    => 'No clicks in this range.',
+    'Zeitraum'                           => 'Time range',
+
     // Bot-Vorschau / Link-Preview (index.php)
     'Kurzlink'                           => 'Short link',
     'Weiterleitung zu %s'                => 'Redirecting to %s',

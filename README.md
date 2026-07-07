@@ -29,7 +29,9 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 - **Gruppen / Projekte** zum Ordnen, inkl. Verschieben per Dropdown oder **Drag & Drop**
 - **QR-Codes** pro Link — lokal erzeugt (kein externer Dienst), als **PNG oder SVG**,
   mit einstellbarer Fehlerkorrektur (L/M/Q/H), Größe, Rand und Farben
-- **Klick-Zähler** — rein anonym (keine IPs, Zeitstempel oder User-Agents)
+- **Klick-Zähler** — rein anonym (keine IPs, Zeitstempel oder User-Agents),
+  mit **Statistik-Kacheln** (gesamt / heute / 7 Tage / Top-Link) und
+  **Klick-Verlauf** als Diagramm (14 / 30 / 90 Tage)
 - **Titel / Notiz** je Link, **Ablaufdatum** (abgelaufene Links liefern `410 Gone`)
 - **Live-Suche**, **Bulk-Aktionen** (verschieben / löschen / Zähler zurücksetzen)
 - **Import / Export** als JSON
@@ -39,7 +41,8 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 - **Favicon & Theme-Color** im Marken-Design, gestaltete 404/410-Seiten
 - **Inline-Validierung** der URL, **Toast-Meldungen**
 - **„Angemeldet bleiben"** (sichere Token)
-- Modernes, responsives UI inkl. **Dark Mode**
+- Modernes, responsives UI im **Apple-Look** (Glas-Topbar, Pill-Buttons,
+  Hairlines) inkl. **Dark Mode**
 
 ---
 
