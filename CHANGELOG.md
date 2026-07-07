@@ -5,6 +5,14 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+### Hinzugefügt
+- **Passwortgeschützte Links:** je Link optional ein Passwort (im Admin beim
+  Anlegen/Bearbeiten oder per API-Feld `password`). Besucher sehen eine
+  Passwort-Seite im GOTO-Look; nach korrekter Eingabe folgt die Weiterleitung.
+  Gespeichert wird nur ein bcrypt-Hash; 8 Fehlversuche → 15 Min. Sperre je
+  Besucher; die Ziel-URL wird vor der Freigabe nirgends preisgegeben (auch
+  nicht an Link-Preview-Bots); Klicks zählen erst nach Freigabe.
+
 ## [0.3.0] – 2026-07-07
 
 ### Geändert

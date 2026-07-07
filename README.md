@@ -33,6 +33,8 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
   mit **Statistik-Kacheln** (gesamt / heute / 7 Tage / Top-Link) und
   **Klick-Verlauf** als Diagramm (14 / 30 / 90 Tage)
 - **Titel / Notiz** je Link, **Ablaufdatum** (abgelaufene Links liefern `410 Gone`)
+- **Passwortgeschützte Links**: optional je Link ein Passwort – Besucher sehen
+  erst eine Passwort-Seite, dann die Weiterleitung (bcrypt, mit Brute-Force-Sperre)
 - **Live-Suche**, **Bulk-Aktionen** (verschieben / löschen / Zähler zurücksetzen)
 - **Import / Export** als JSON
 - **HTTP-API** zum Anlegen von Links per Skript, abgesichert über **API-Token**
@@ -158,6 +160,12 @@ Admin-Oberfläche: `deine-domain.de/goto/admin`
 - **Suche:** Feld über der Liste filtert live nach Kürzel, Titel, URL, Gruppe.
 - **Mehrfachauswahl:** Checkboxen markieren → verschieben / löschen /
   Zähler zurücksetzen.
+- **Passwortschutz:** beim Anlegen oder Bearbeiten ein Link-Passwort setzen →
+  Besucher sehen erst eine Passwort-Seite (Titel des Eintrags, GOTO-Look) und
+  gelangen nach korrekter Eingabe zum Ziel. Gespeichert wird nur der
+  bcrypt-Hash; nach 8 Fehlversuchen greift eine 15-Minuten-Sperre je Besucher.
+  Die Ziel-URL wird vor der Freigabe nirgends verraten (auch nicht an
+  Social-Media-Crawler). Klicks zählen erst nach erfolgreicher Eingabe.
 - **Export/Import:** unter „Export / Import" (JSON). Beim Import wahlweise
   ersetzen oder zusammenführen; Klick-Zähler werden nicht exportiert.
 
@@ -197,6 +205,7 @@ benötigte Token jederzeit **widerrufen**.
 | `group` | – | Gruppe (wird bei Bedarf angelegt) |
 | `title` | – | Titel / Notiz |
 | `expires` | – | Ablaufdatum `JJJJ-MM-TT` |
+| `password` | – | Link-Passwort (Besucher müssen es eingeben; nur der Hash wird gespeichert) |
 
 Daten als Formularfelder **oder** JSON-Body (`Content-Type: application/json`).
 
@@ -240,7 +249,8 @@ oder reserviert), `429` (Rate-Limit, **120 Anfragen/Min.** je Token),
       "group": "Bachelorarbeit",
       "title": "Intro-Video",
       "expires": "2026-12-31",
-      "created": 1781695468
+      "created": 1781695468,
+      "pass": ""
     }
   }
 }

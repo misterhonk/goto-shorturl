@@ -181,6 +181,8 @@ table tr:hover td:last-child{border-top-right-radius:10px;border-bottom-right-ra
 .chip .ico{width:12px;height:12px}
 .chip--date{color:var(--muted);background:var(--fill)}
 .chip--exp{color:var(--err-fg);background:var(--err-bg);border-color:var(--err-line)}
+.chip--lock{color:var(--muted);background:var(--fill);padding:.14rem .3rem}
+.field--pw{flex:0 0 12rem}
 .clickcell{width:1%}
 .clicks{display:inline-flex;align-items:center;gap:.35rem;color:var(--muted);font-size:.82rem;
      font-variant-numeric:tabular-nums}

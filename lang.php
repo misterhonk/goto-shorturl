@@ -187,6 +187,17 @@ return [
     'Weiterleitung zu %s'                => 'Redirecting to %s',
     'Weiter zur Zielseite'               => 'Continue to destination',
 
+    // Passwortgeschützte Links
+    'Passwortgeschützter Link'           => 'Password-protected link',
+    'Dieser Link ist passwortgeschützt.' => 'This link is password-protected.',
+    'Weiter'                             => 'Continue',
+    'Passwort (optional)'                => 'Password (optional)',
+    'Link-Passwort'                      => 'Link password',
+    'leer = ohne'                        => 'empty = none',
+    'gesetzt – neues eingeben zum Ändern' => 'set – type a new one to change it',
+    'Passwort entfernen'                 => 'Remove password',
+    'passwortgeschützt'                  => 'password-protected',
+
     // Öffentliche Fehlerseiten (index.php)
     'Nicht gefunden'                     => 'Not found',
     'Abgelaufen'                         => 'Expired',

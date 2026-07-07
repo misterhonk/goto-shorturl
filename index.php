@@ -34,6 +34,7 @@ if ($slug === '') {
 $target    = null;
 $expired   = false;
 $linkTitle = '';
+$linkPass  = '';
 
 if ($slug !== '' && isset($links[$slug])) {
     $entry = $links[$slug];
@@ -41,6 +42,7 @@ if ($slug !== '' && isset($links[$slug])) {
         $url       = (string) ($entry['url'] ?? '');
         $expires   = (string) ($entry['expires'] ?? '');
         $linkTitle = (string) ($entry['title'] ?? '');
+        $linkPass  = (string) ($entry['pass'] ?? '');
         if ($expires !== '' && $expires < date('Y-m-d')) $expired = true;
         elseif ($url !== '')                              $target = $url;
     } else {
@@ -56,18 +58,22 @@ if ($target !== null) {
 
 if (is_https()) header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
 
+// Passwortgeschützte Links: statt 302 zuerst die Passwort-Seite (weiter unten)
+$protected = $target !== null && $linkPass !== '';
+
 /* Link-Preview-Bots (WhatsApp, Slack, …) bekommen statt des 302 eine kleine
  * Seite mit Open-Graph-Daten (Titel aus dem Eintrag) – Crawler würden der
  * Weiterleitung sonst bis zur Zielseite folgen und deren Vorschau zeigen.
- * Menschen erhalten weiterhin sofort das 302; Bot-Aufrufe zählen nicht als Klick. */
-$isPreviewBot = $target !== null && preg_match(
+ * Menschen erhalten weiterhin sofort das 302; Bot-Aufrufe zählen nicht als
+ * Klick. Geschützte Links zeigen ohnehin allen dieselbe Passwort-Seite. */
+$isPreviewBot = $target !== null && !$protected && preg_match(
     '/facebookexternalhit|whatsapp|twitterbot|slackbot|slack-imgproxy|telegrambot'
     . '|linkedinbot|discordbot|pinterest|skypeuripreview|mastodon|bluesky|redditbot'
     . '|iframely|embedly/i',
     (string) ($_SERVER['HTTP_USER_AGENT'] ?? '')) === 1;
 
-if ($target !== null && !$isPreviewBot) {
-    // Aufruf zählen (reiner Zähler, datensparsam)
+// Aufruf zählen (reiner Zähler, datensparsam)
+function count_click(string $slug): void {
     $fp = @fopen(CLICKS_FILE, 'c+');
     if ($fp && flock($fp, LOCK_EX)) {
         $cur    = stream_get_contents($fp);
@@ -91,7 +97,10 @@ if ($target !== null && !$isPreviewBot) {
         flock($fp, LOCK_UN);
     }
     if ($fp) fclose($fp);
+}
 
+if ($target !== null && !$isPreviewBot && !$protected) {
+    count_click($slug);
     header('Referrer-Policy: no-referrer');
     header('Location: ' . $target, true, 302);
     exit;
@@ -149,7 +158,13 @@ body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--
 h1{font-size:1.15rem;margin:1rem 0 .35rem}
 p{color:var(--muted);margin:.25rem 0;overflow-wrap:anywhere}
 .btn{display:inline-block;margin-top:1.1rem;padding:.6rem 1.2rem;border-radius:10px;font-weight:600;
-     background:linear-gradient(135deg,#6366f1,#2563eb);color:#fff;text-decoration:none}
+     background:linear-gradient(135deg,#6366f1,#2563eb);color:#fff;text-decoration:none;
+     border:0;font-size:1rem;cursor:pointer}
+.pwform{margin-top:1rem}
+.pwform input{width:100%;padding:.65rem .8rem;border:1px solid rgba(128,128,128,.35);border-radius:10px;
+     font:inherit;background:var(--card);color:var(--fg);text-align:center}
+.pwform input:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 4px rgba(37,99,235,.2)}
+.err{color:#e03131;font-size:.88rem;margin-top:.6rem}
 </style>
 </head>
 <body>
@@ -160,6 +175,73 @@ p{color:var(--muted);margin:.25rem 0;overflow-wrap:anywhere}
 </body>
 </html>
 HTML;
+}
+
+if ($protected) {
+    /* Passwort-Seite: Zugang erst nach richtigem Link-Passwort (bcrypt-Hash im
+     * Eintrag). Brute-Force-Bremse je IP+Kürzel über .ht_attempts.json. Die
+     * Ziel-URL taucht vor der Freigabe nirgends in der Antwort auf. */
+    $attFile = $dataDir . '/.ht_attempts.json';
+    $attKey  = 'pw:' . hash('sha256', ($_SERVER['REMOTE_ADDR'] ?? '') . '|' . $slug);
+    $err     = '';
+    $now     = time();
+    $att     = load_json($attFile);
+    $rec     = (array) ($att[$attKey] ?? ['count' => 0, 'until' => 0]);
+    $locked  = (int) ($rec['until'] ?? 0) > $now;
+
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['linkpw'])) {
+        if ($locked) {
+            $err = sprintf($t('Zu viele Fehlversuche. Bitte %d Min. warten.'),
+                           (int) ceil(((int) $rec['until'] - $now) / 60));
+        } elseif (password_verify((string) $_POST['linkpw'], $linkPass)) {
+            if (isset($att[$attKey])) { unset($att[$attKey]); save_json($attFile, $att); }
+            count_click($slug);
+            header('Referrer-Policy: no-referrer');
+            header('Location: ' . $target, true, 302);
+            exit;
+        } else {
+            $rec['count'] = (int) ($rec['count'] ?? 0) + 1;
+            if ($rec['count'] >= 8) $rec = ['count' => 0, 'until' => $now + 900];
+            foreach ($att as $k => $r) {   // abgelaufene Einträge aufräumen
+                if (($r['until'] ?? 0) < $now && ($r['count'] ?? 0) === 0) unset($att[$k]);
+            }
+            $att[$attKey] = $rec;
+            if (count($att) > 2000) {
+                $att = array_filter($att, fn($r) => ($r['until'] ?? 0) >= $now);
+                $att[$attKey] = $rec;
+            }
+            save_json($attFile, $att);
+            usleep(300000);
+            $err = ((int) ($rec['until'] ?? 0) > $now)
+                ? sprintf($t('Zu viele Fehlversuche. Bitte %d Min. warten.'),
+                          (int) ceil(((int) $rec['until'] - $now) / 60))
+                : $t('Falsches Passwort.');
+        }
+    } elseif ($locked) {
+        $err = sprintf($t('Zu viele Fehlversuche. Bitte %d Min. warten.'),
+                       (int) ceil(((int) $rec['until'] - $now) / 60));
+    }
+
+    $pgTitle  = $linkTitle !== '' ? $linkTitle : 'GOTO – ' . $t('Kurzlink');
+    $ogDesc   = $t('Passwortgeschützter Link');
+    $shortUrl = $baseUrl . rawurlencode($slug);
+    // OG-Daten für geteilte geschützte Links – ohne jeden Hinweis aufs Ziel
+    $extra = '<meta property="og:type" content="website">' . "\n"
+           . '<meta property="og:site_name" content="GOTO">' . "\n"
+           . '<meta property="og:title" content="' . $ee($pgTitle) . '">' . "\n"
+           . '<meta property="og:description" content="' . $ee($ogDesc) . '">' . "\n"
+           . '<meta property="og:url" content="' . $ee($shortUrl) . '">' . "\n"
+           . '<meta property="og:image" content="' . $ee($baseUrl . 'assets/og.png') . '">' . "\n"
+           . '<meta name="twitter:card" content="summary_large_image">' . "\n";
+    $body = '<h1>' . $ee($pgTitle) . '</h1>'
+          . '<p>' . $ee($t('Dieser Link ist passwortgeschützt.')) . '</p>'
+          . '<form class="pwform" method="post">'
+          . '<input type="password" name="linkpw" required autofocus aria-label="' . $ee($t('Passwort')) . '" placeholder="' . $ee($t('Passwort')) . '">'
+          . '<button class="btn">' . $ee($t('Weiter')) . '</button>'
+          . '</form>'
+          . ($err !== '' ? '<p class="err">' . $ee($err) . '</p>' : '');
+    goto_page($lang, $dirUrl, $pgTitle, $extra, $body);
+    exit;
 }
 
 if ($target !== null) {

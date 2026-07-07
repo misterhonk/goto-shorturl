@@ -12,7 +12,8 @@ declare(strict_types=1);
  *  Datenmodell (urls.json):
  *    { "groups": ["Projekt A"],
  *      "links": { "slug": {
- *         "url":"", "group":"", "title":"", "expires":"YYYY-MM-DD", "created":0
+ *         "url":"", "group":"", "title":"", "expires":"YYYY-MM-DD",
+ *         "created":0, "pass":""   // pass: bcrypt-Hash, ""=ohne Passwort
  *      } } }
  * ------------------------------------------------------------------ */
 
@@ -117,9 +118,10 @@ function normalize_data($raw): array {
         $title   = is_array($item) ? clean_title((string) ($item['title'] ?? '')) : '';
         $expires = is_array($item) ? clean_date((string) ($item['expires'] ?? '')) : '';
         $created = is_array($item) ? (int) ($item['created'] ?? 0) : 0;
+        $pass    = is_array($item) ? (string) ($item['pass'] ?? '') : '';
         if ($group !== '' && !in_array($group, $groups, true)) $groups[] = $group;
         $links[$slug] = ['url' => $url, 'group' => $group, 'title' => $title,
-                         'expires' => $expires, 'created' => $created];
+                         'expires' => $expires, 'created' => $created, 'pass' => $pass];
     }
     return ['groups' => $groups, 'links' => $links];
 }

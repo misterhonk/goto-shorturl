@@ -109,6 +109,7 @@ $slug    = clean_slug((string) ($in['slug'] ?? ''));
 $group   = clean_group((string) ($in['group'] ?? ''));
 $title   = clean_title((string) ($in['title'] ?? ''));
 $expires = clean_date((string) ($in['expires'] ?? ''));
+$linkpw  = (string) ($in['password'] ?? '');   // optional: Link-Passwort (wird gehasht)
 
 if (!valid_url($url)) {
     respond(422, ['ok' => false, 'error' => 'invalid_url', 'message' => 'Field "url" must be a valid http(s) URL.']);
@@ -125,7 +126,8 @@ if (isset($data['links'][$slug])) {
 if ($group !== '' && !in_array($group, $data['groups'], true)) $data['groups'][] = $group;
 
 $data['links'][$slug] = ['url' => $url, 'group' => $group, 'title' => $title,
-                         'expires' => $expires, 'created' => time()];
+                         'expires' => $expires, 'created' => time(),
+                         'pass' => ($linkpw !== '') ? password_hash($linkpw, PASSWORD_DEFAULT) : ''];
 
 if (!save_data($data)) {
     respond(500, ['ok' => false, 'error' => 'write_failed', 'message' => 'Could not save – check write permissions for urls.json.']);
@@ -139,4 +141,5 @@ respond(201, [
     'group'     => $group,
     'title'     => $title,
     'expires'   => $expires,
+    'protected' => ($linkpw !== ''),
 ]);

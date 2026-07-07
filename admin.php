@@ -383,6 +383,16 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
                 <span class="field-label"><?= t('Titel / Notiz') ?></span>
                 <input form="editform" type="text" name="title" value="<?= e($l['title']) ?>" placeholder="optional">
               </label>
+              <div class="erow">
+                <label class="field">
+                  <span class="field-label"><?= t('Link-Passwort') ?></span>
+                  <input form="editform" type="password" name="linkpw" autocomplete="new-password"
+                         placeholder="<?= ($l['pass'] ?? '') !== '' ? t('gesetzt – neues eingeben zum Ändern') : t('leer = ohne') ?>">
+                </label>
+                <?php if (($l['pass'] ?? '') !== ''): ?>
+                <label class="chk"><input form="editform" type="checkbox" name="pwclear" value="1"> <?= t('Passwort entfernen') ?></label>
+                <?php endif; ?>
+              </div>
               <div class="erow erow--actions">
                 <button form="editform" class="btn btn--primary btn--small"><?= icon('check') ?><?= t('Speichern') ?></button>
                 <a class="btn btn--ghost btn--small" href="<?= e($self) ?>"><?= icon('x') ?><?= t('Abbrechen') ?></a>
@@ -402,7 +412,7 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
               </div>
             </div>
           </td>
-          <td class="target" title="<?= e($url) ?>"><?= e($url) ?><?php if ($l['expires'] !== ''): ?><span class="chip <?= is_expired($l['expires']) ? 'chip--exp' : 'chip--date' ?>"><?= icon('calendar') ?><?= is_expired($l['expires']) ? 'abgelaufen' : e($l['expires']) ?></span><?php endif; ?></td>
+          <td class="target" title="<?= e($url) ?>"><?= e($url) ?><?php if (($l['pass'] ?? '') !== ''): ?><span class="chip chip--lock" title="<?= t('passwortgeschützt') ?>"><?= icon('lock') ?></span><?php endif; ?><?php if ($l['expires'] !== ''): ?><span class="chip <?= is_expired($l['expires']) ? 'chip--exp' : 'chip--date' ?>"><?= icon('calendar') ?><?= is_expired($l['expires']) ? 'abgelaufen' : e($l['expires']) ?></span><?php endif; ?></td>
           <td class="clickcell"><button type="button" class="clicks" data-slug="<?= e($slug) ?>" data-total="<?= clicks_total($clicks, $slug) ?>" data-days="<?= e(json_encode(clicks_days($clicks, $slug), JSON_FORCE_OBJECT)) ?>" title="<?= t('Klick-Verlauf anzeigen') ?>" aria-label="<?= t('Klick-Verlauf anzeigen') ?>"><?php $spark = sparkline_svg(clicks_days($clicks, $slug)); echo $spark ?: icon('bars'); ?><?= clicks_total($clicks, $slug) ?></button></td>
           <td class="movecell">
             <form method="post" class="inline">
@@ -564,6 +574,7 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
     $group  = clean_group((string) ($_POST['group'] ?? ''));
     $title  = clean_title((string) ($_POST['title'] ?? ''));
     $expires = clean_date((string) ($_POST['expires'] ?? ''));
+    $linkpw  = (string) ($_POST['linkpw'] ?? '');   // Link-Passwort (optional, wird gehasht)
     $groupValid = ($group === '' || in_array($group, $data['groups'], true)) ? $group : '';
 
     if ($action === 'add') {
@@ -577,7 +588,8 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
                 flash(t('Kürzel „%s“ existiert bereits.', $slug));
             } else {
                 $data['links'][$slug] = ['url' => $url, 'group' => $groupValid,
-                    'title' => $title, 'expires' => $expires, 'created' => time()];
+                    'title' => $title, 'expires' => $expires, 'created' => time(),
+                    'pass' => ($linkpw !== '') ? password_hash($linkpw, PASSWORD_DEFAULT) : ''];
                 save_data($data)
                     ? flash(t('„%s“ angelegt.', $slug), 'success')
                     : flash(t('Konnte nicht speichern – Schreibrechte für urls.json prüfen.'));
@@ -593,6 +605,9 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
         else {
             $entry = $data['links'][$slug];
             $entry['url'] = $url; $entry['title'] = $title; $entry['expires'] = $expires;
+            // Link-Passwort: Checkbox entfernt es, neues ersetzt es, leer = unverändert
+            if (!empty($_POST['pwclear'])) $entry['pass'] = '';
+            elseif ($linkpw !== '')        $entry['pass'] = password_hash($linkpw, PASSWORD_DEFAULT);
             if ($newslug === $slug) {
                 $data['links'][$slug] = $entry;
             } else {
@@ -722,7 +737,7 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
             if ($g !== '' && !in_array($g, $data['groups'], true)) $data['groups'][] = $g;
             $data['links'][$slug] = ['url' => (string) ($it['url'] ?? ''), 'group' => $g,
                 'title' => (string) ($it['title'] ?? ''), 'expires' => (string) ($it['expires'] ?? ''),
-                'created' => (int) ($it['created'] ?? 0)];
+                'created' => (int) ($it['created'] ?? 0), 'pass' => (string) ($it['pass'] ?? '')];
             $clrec = $it['clicks'] ?? 0;
             unset($tr[$slug]);
             $cl = load_clicks(); if ($clrec) $cl[$slug] = $clrec; save_clicks($cl);
@@ -891,6 +906,10 @@ head('GOTO', $nonce);
       <label class="field grow">
         <span class="field-label"><?= t('Titel / Notiz') ?></span>
         <input type="text" name="title" placeholder="optional – z. B. „Intro-Video“">
+      </label>
+      <label class="field field--pw">
+        <span class="field-label"><?= t('Passwort (optional)') ?></span>
+        <input type="password" name="linkpw" autocomplete="new-password" placeholder="<?= t('leer = ohne') ?>">
       </label>
       <button class="btn btn--primary"><?= icon('plus') ?><?= t('Hinzufügen') ?></button>
     </div>
