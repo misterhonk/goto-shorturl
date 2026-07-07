@@ -5,6 +5,8 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+## [0.4.0] – 2026-07-07
+
 ### Hinzugefügt
 - **Vorschau-Zwischenseite** (opt-in je Link, Häkchen im Admin oder API-Feld
   `preview`): Besucher sehen Titel + Ziel-Domain im GOTO-Look und werden nach
@@ -98,7 +100,8 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
   Drag & Drop, Live-Suche sowie Import/Export.
 - Datenbanklos – alle Daten in JSON-Dateien.
 
-[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/misterhonk/goto-shorturl/releases/tag/v0.1.0
