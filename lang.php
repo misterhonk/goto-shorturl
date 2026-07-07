@@ -198,6 +198,14 @@ return [
     'Passwort entfernen'                 => 'Remove password',
     'passwortgeschützt'                  => 'password-protected',
 
+    // Vorschau-Zwischenseite & Anlege-Formular
+    'Weitere Optionen'                   => 'More options',
+    'Kürzel · Gruppe · Ablauf · Titel · Passwort · Vorschau' => 'slug · group · expiry · title · password · preview',
+    'Vorschau-Seite vor der Weiterleitung' => 'Preview page before redirecting',
+    'Vorschau-Seite aktiv'               => 'Preview page enabled',
+    'Jetzt weiter'                       => 'Continue now',
+    'Automatische Weiterleitung in %s Sekunden …' => 'Redirecting automatically in %s seconds …',
+
     // Öffentliche Fehlerseiten (index.php)
     'Nicht gefunden'                     => 'Not found',
     'Abgelaufen'                         => 'Expired',

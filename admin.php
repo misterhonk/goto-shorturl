@@ -327,6 +327,7 @@ function icon(string $name): string {
         'bars'     => '<path d="M12 20V10M18 20V4M6 20v-4"/>',
         'search'   => '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
         'undo'     => '<path d="M3 7v6h6"/><path d="M3.5 13a9 9 0 1 0 2.3-9.3L3 8"/>',
+        'eye'      => '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>',
     ];
     return '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
          . 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
@@ -392,6 +393,7 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
                 <?php if (($l['pass'] ?? '') !== ''): ?>
                 <label class="chk"><input form="editform" type="checkbox" name="pwclear" value="1"> <?= t('Passwort entfernen') ?></label>
                 <?php endif; ?>
+                <label class="chk"><input form="editform" type="checkbox" name="preview" value="1"<?= !empty($l['preview']) ? ' checked' : '' ?>> <?= t('Vorschau-Seite vor der Weiterleitung') ?></label>
               </div>
               <div class="erow erow--actions">
                 <button form="editform" class="btn btn--primary btn--small"><?= icon('check') ?><?= t('Speichern') ?></button>
@@ -412,7 +414,7 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
               </div>
             </div>
           </td>
-          <td class="target" title="<?= e($url) ?>"><?= e($url) ?><?php if (($l['pass'] ?? '') !== ''): ?><span class="chip chip--lock" title="<?= t('passwortgeschützt') ?>"><?= icon('lock') ?></span><?php endif; ?><?php if ($l['expires'] !== ''): ?><span class="chip <?= is_expired($l['expires']) ? 'chip--exp' : 'chip--date' ?>"><?= icon('calendar') ?><?= is_expired($l['expires']) ? 'abgelaufen' : e($l['expires']) ?></span><?php endif; ?></td>
+          <td class="target" title="<?= e($url) ?>"><?= e($url) ?><?php if (($l['pass'] ?? '') !== ''): ?><span class="chip chip--lock" title="<?= t('passwortgeschützt') ?>"><?= icon('lock') ?></span><?php endif; ?><?php if (!empty($l['preview'])): ?><span class="chip chip--lock" title="<?= t('Vorschau-Seite aktiv') ?>"><?= icon('eye') ?></span><?php endif; ?><?php if ($l['expires'] !== ''): ?><span class="chip <?= is_expired($l['expires']) ? 'chip--exp' : 'chip--date' ?>"><?= icon('calendar') ?><?= is_expired($l['expires']) ? 'abgelaufen' : e($l['expires']) ?></span><?php endif; ?></td>
           <td class="clickcell"><button type="button" class="clicks" data-slug="<?= e($slug) ?>" data-total="<?= clicks_total($clicks, $slug) ?>" data-days="<?= e(json_encode(clicks_days($clicks, $slug), JSON_FORCE_OBJECT)) ?>" title="<?= t('Klick-Verlauf anzeigen') ?>" aria-label="<?= t('Klick-Verlauf anzeigen') ?>"><?php $spark = sparkline_svg(clicks_days($clicks, $slug)); echo $spark ?: icon('bars'); ?><?= clicks_total($clicks, $slug) ?></button></td>
           <td class="movecell">
             <form method="post" class="inline">
@@ -589,7 +591,8 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
             } else {
                 $data['links'][$slug] = ['url' => $url, 'group' => $groupValid,
                     'title' => $title, 'expires' => $expires, 'created' => time(),
-                    'pass' => ($linkpw !== '') ? password_hash($linkpw, PASSWORD_DEFAULT) : ''];
+                    'pass' => ($linkpw !== '') ? password_hash($linkpw, PASSWORD_DEFAULT) : '',
+                    'preview' => !empty($_POST['preview'])];
                 save_data($data)
                     ? flash(t('„%s“ angelegt.', $slug), 'success')
                     : flash(t('Konnte nicht speichern – Schreibrechte für urls.json prüfen.'));
@@ -608,6 +611,7 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
             // Link-Passwort: Checkbox entfernt es, neues ersetzt es, leer = unverändert
             if (!empty($_POST['pwclear'])) $entry['pass'] = '';
             elseif ($linkpw !== '')        $entry['pass'] = password_hash($linkpw, PASSWORD_DEFAULT);
+            $entry['preview'] = !empty($_POST['preview']);
             if ($newslug === $slug) {
                 $data['links'][$slug] = $entry;
             } else {
@@ -737,7 +741,8 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
             if ($g !== '' && !in_array($g, $data['groups'], true)) $data['groups'][] = $g;
             $data['links'][$slug] = ['url' => (string) ($it['url'] ?? ''), 'group' => $g,
                 'title' => (string) ($it['title'] ?? ''), 'expires' => (string) ($it['expires'] ?? ''),
-                'created' => (int) ($it['created'] ?? 0), 'pass' => (string) ($it['pass'] ?? '')];
+                'created' => (int) ($it['created'] ?? 0), 'pass' => (string) ($it['pass'] ?? ''),
+                'preview' => !empty($it['preview'])];
             $clrec = $it['clicks'] ?? 0;
             unset($tr[$slug]);
             $cl = load_clicks(); if ($clrec) $cl[$slug] = $clrec; save_clicks($cl);
@@ -876,54 +881,60 @@ head('GOTO', $nonce);
 <?php endif; ?>
 
 <div class="panel">
-  <form method="post" autocomplete="off">
+  <!-- Schnellfall: URL einfügen, Enter – fertig. Alles Weitere ist aufklappbar. -->
+  <form id="addform" method="post" autocomplete="off">
     <input type="hidden" name="action" value="add">
     <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
-    <div class="bar">
+    <div class="bar bar--end">
       <label class="field grow">
         <span class="field-label"><?= t('Ziel-URL') ?></span>
         <input type="text" name="url" placeholder="https://ziel-adresse.de/…" required>
-      </label>
-    </div>
-    <div class="bar">
-      <label class="field grow2">
-        <span class="field-label"><?= t('Gewünschte Short-URL') ?></span>
-        <input type="text" name="slug" placeholder="<?= t('leer lassen für zufälligen Wert') ?>" pattern="[a-z0-9\-]*">
-      </label>
-      <label class="field field--group">
-        <span class="field-label"><?= t('Gruppe') ?></span>
-        <select name="group"><?= group_options($groups, '') ?></select>
-      </label>
-      <label class="field field--date">
-        <span class="field-label"><?= t('Ablaufdatum (optional)') ?></span>
-        <span class="datefield">
-          <input type="date" name="expires" title="Nach diesem Tag ist der Link gesperrt">
-          <button type="button" class="btn btn--ghost btn--small datefield-clear" data-clear-date title="<?= t('Ablauf entfernen') ?>"><?= icon('x') ?></button>
-        </span>
-      </label>
-    </div>
-    <div class="bar bar--end">
-      <label class="field grow">
-        <span class="field-label"><?= t('Titel / Notiz') ?></span>
-        <input type="text" name="title" placeholder="optional – z. B. „Intro-Video“">
-      </label>
-      <label class="field field--pw">
-        <span class="field-label"><?= t('Passwort (optional)') ?></span>
-        <input type="password" name="linkpw" autocomplete="new-password" placeholder="<?= t('leer = ohne') ?>">
       </label>
       <button class="btn btn--primary"><?= icon('plus') ?><?= t('Hinzufügen') ?></button>
     </div>
   </form>
 
-  <form class="bar bar--end" method="post" autocomplete="off">
-    <input type="hidden" name="action" value="group_add">
-    <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
-    <label class="field grow">
-      <span class="field-label"><?= t('Neue Gruppe / Projekt') ?></span>
-      <input type="text" name="group_name" placeholder="z. B. Bachelorarbeit" maxlength="40" required>
-    </label>
-    <button class="btn btn--ghost"><?= icon('folder') ?><?= t('Gruppe anlegen') ?></button>
-  </form>
+  <details class="addopts" id="addopts">
+    <summary><?= t('Weitere Optionen') ?><span class="muted addopts-hint"><?= t('Kürzel · Gruppe · Ablauf · Titel · Passwort · Vorschau') ?></span></summary>
+    <div class="bar">
+      <label class="field grow2">
+        <span class="field-label"><?= t('Gewünschte Short-URL') ?></span>
+        <input form="addform" type="text" name="slug" placeholder="<?= t('leer lassen für zufälligen Wert') ?>" pattern="[a-z0-9\-]*">
+      </label>
+      <label class="field field--group">
+        <span class="field-label"><?= t('Gruppe') ?></span>
+        <select form="addform" name="group"><?= group_options($groups, '') ?></select>
+      </label>
+      <label class="field field--date">
+        <span class="field-label"><?= t('Ablaufdatum (optional)') ?></span>
+        <span class="datefield">
+          <input form="addform" type="date" name="expires" title="Nach diesem Tag ist der Link gesperrt">
+          <button type="button" class="btn btn--ghost btn--small datefield-clear" data-clear-date title="<?= t('Ablauf entfernen') ?>"><?= icon('x') ?></button>
+        </span>
+      </label>
+    </div>
+    <div class="bar">
+      <label class="field grow">
+        <span class="field-label"><?= t('Titel / Notiz') ?></span>
+        <input form="addform" type="text" name="title" placeholder="optional – z. B. „Intro-Video“">
+      </label>
+      <label class="field field--pw">
+        <span class="field-label"><?= t('Passwort (optional)') ?></span>
+        <input form="addform" type="password" name="linkpw" autocomplete="new-password" placeholder="<?= t('leer = ohne') ?>">
+      </label>
+    </div>
+    <label class="chk chk--opt"><input form="addform" type="checkbox" name="preview" value="1"> <?= t('Vorschau-Seite vor der Weiterleitung') ?></label>
+
+    <form class="bar bar--end addopts-group" method="post" autocomplete="off">
+      <input type="hidden" name="action" value="group_add">
+      <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
+      <label class="field grow">
+        <span class="field-label"><?= t('Neue Gruppe / Projekt') ?></span>
+        <input type="text" name="group_name" placeholder="z. B. Bachelorarbeit" maxlength="40" required>
+      </label>
+      <button class="btn btn--ghost"><?= icon('folder') ?><?= t('Gruppe anlegen') ?></button>
+    </form>
+  </details>
 </div>
 
 <?php if ($editing !== null && isset($links[$editing])): ?>

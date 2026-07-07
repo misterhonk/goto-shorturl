@@ -35,6 +35,7 @@ $target    = null;
 $expired   = false;
 $linkTitle = '';
 $linkPass  = '';
+$linkPrev  = false;
 
 if ($slug !== '' && isset($links[$slug])) {
     $entry = $links[$slug];
@@ -43,6 +44,7 @@ if ($slug !== '' && isset($links[$slug])) {
         $expires   = (string) ($entry['expires'] ?? '');
         $linkTitle = (string) ($entry['title'] ?? '');
         $linkPass  = (string) ($entry['pass'] ?? '');
+        $linkPrev  = !empty($entry['preview']);
         if ($expires !== '' && $expires < date('Y-m-d')) $expired = true;
         elseif ($url !== '')                              $target = $url;
     } else {
@@ -99,7 +101,7 @@ function count_click(string $slug): void {
     if ($fp) fclose($fp);
 }
 
-if ($target !== null && !$isPreviewBot && !$protected) {
+if ($target !== null && !$isPreviewBot && !$protected && !$linkPrev) {
     count_click($slug);
     header('Referrer-Policy: no-referrer');
     header('Location: ' . $target, true, 302);
@@ -240,6 +242,27 @@ if ($protected) {
           . '<button class="btn">' . $ee($t('Weiter')) . '</button>'
           . '</form>'
           . ($err !== '' ? '<p class="err">' . $ee($err) . '</p>' : '');
+    goto_page($lang, $dirUrl, $pgTitle, $extra, $body);
+    exit;
+}
+
+if ($target !== null && !$isPreviewBot) {
+    /* Vorschau-Zwischenseite (opt-in je Link): zeigt Titel und Ziel-Domain,
+     * leitet nach 3 Sekunden automatisch weiter (Button für Sofort-Klick).
+     * Der Aufruf zählt hier – der Besucher hat den Link geöffnet. */
+    count_click($slug);
+    $host    = (string) parse_url($target, PHP_URL_HOST);
+    $pgTitle = $linkTitle !== '' ? $linkTitle : 'GOTO – ' . $t('Kurzlink');
+    $extra   = '<meta http-equiv="refresh" content="3;url=' . $ee($target) . '">' . "\n"
+             . '<meta name="referrer" content="no-referrer">' . "\n";
+    $body = '<h1>' . $ee($pgTitle) . '</h1>'
+          . '<p>' . $ee(sprintf($t('Weiterleitung zu %s'), $host)) . '</p>'
+          . '<a class="btn" href="' . $ee($target) . '" rel="noreferrer">' . $ee($t('Jetzt weiter')) . '</a>'
+          . '<p class="muted" style="margin-top:.9rem">'
+          . sprintf($ee($t('Automatische Weiterleitung in %s Sekunden …')), '<span id="cd">3</span>')
+          . '</p>'
+          . '<script>(function(){var n=3,e=document.getElementById("cd");'
+          . 'setInterval(function(){n=Math.max(0,n-1);if(e)e.textContent=n;},1000);})();</script>';
     goto_page($lang, $dirUrl, $pgTitle, $extra, $body);
     exit;
 }

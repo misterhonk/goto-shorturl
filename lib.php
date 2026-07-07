@@ -13,7 +13,8 @@ declare(strict_types=1);
  *    { "groups": ["Projekt A"],
  *      "links": { "slug": {
  *         "url":"", "group":"", "title":"", "expires":"YYYY-MM-DD",
- *         "created":0, "pass":""   // pass: bcrypt-Hash, ""=ohne Passwort
+ *         "created":0, "pass":"",   // pass: bcrypt-Hash, ""=ohne Passwort
+ *         "preview":false           // true = Vorschau-Seite vor der Weiterleitung
  *      } } }
  * ------------------------------------------------------------------ */
 
@@ -119,9 +120,11 @@ function normalize_data($raw): array {
         $expires = is_array($item) ? clean_date((string) ($item['expires'] ?? '')) : '';
         $created = is_array($item) ? (int) ($item['created'] ?? 0) : 0;
         $pass    = is_array($item) ? (string) ($item['pass'] ?? '') : '';
+        $preview = is_array($item) && !empty($item['preview']);
         if ($group !== '' && !in_array($group, $groups, true)) $groups[] = $group;
         $links[$slug] = ['url' => $url, 'group' => $group, 'title' => $title,
-                         'expires' => $expires, 'created' => $created, 'pass' => $pass];
+                         'expires' => $expires, 'created' => $created,
+                         'pass' => $pass, 'preview' => $preview];
     }
     return ['groups' => $groups, 'links' => $links];
 }

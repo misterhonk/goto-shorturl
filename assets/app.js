@@ -36,6 +36,15 @@
     var self=langSel.getAttribute('data-self')||'';
     location.href=self+'?lang='+encodeURIComponent(langSel.value);
   });
+  // „Weitere Optionen" im Anlege-Formular: Auf/Zu-Zustand pro Browser merken
+  var addopts=document.getElementById('addopts');
+  if(addopts){
+    try{ if(localStorage.getItem('goto-addopts')==='1') addopts.open=true; }catch(e){}
+    addopts.addEventListener('toggle',function(){
+      try{ localStorage.setItem('goto-addopts',addopts.open?'1':'0'); }catch(e){}
+    });
+  }
+
   // Ablaufdatum zurücksetzen
   document.querySelectorAll('[data-clear-date]').forEach(function(b){
     b.addEventListener('click',function(){

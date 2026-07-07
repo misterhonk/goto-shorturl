@@ -6,12 +6,21 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 ## [Unreleased]
 
 ### Hinzugefügt
+- **Vorschau-Zwischenseite** (opt-in je Link, Häkchen im Admin oder API-Feld
+  `preview`): Besucher sehen Titel + Ziel-Domain im GOTO-Look und werden nach
+  3 Sekunden automatisch (oder sofort per Button) weitergeleitet.
 - **Passwortgeschützte Links:** je Link optional ein Passwort (im Admin beim
   Anlegen/Bearbeiten oder per API-Feld `password`). Besucher sehen eine
   Passwort-Seite im GOTO-Look; nach korrekter Eingabe folgt die Weiterleitung.
   Gespeichert wird nur ein bcrypt-Hash; 8 Fehlversuche → 15 Min. Sperre je
   Besucher; die Ziel-URL wird vor der Freigabe nirgends preisgegeben (auch
   nicht an Link-Preview-Bots); Klicks zählen erst nach Freigabe.
+
+### Geändert
+- **Anlege-Formular entschlackt** (Progressive Disclosure): eine Zeile
+  „Ziel-URL + Hinzufügen" für den Schnellfall; Wunsch-Kürzel, Gruppe, Ablauf,
+  Titel, Passwort, Vorschau und „Neue Gruppe" liegen unter dem aufklappbaren
+  Bereich **„Weitere Optionen"** (Auf/Zu-Zustand wird pro Browser gemerkt).
 
 ## [0.3.0] – 2026-07-07
 

@@ -127,7 +127,8 @@ if ($group !== '' && !in_array($group, $data['groups'], true)) $data['groups'][]
 
 $data['links'][$slug] = ['url' => $url, 'group' => $group, 'title' => $title,
                          'expires' => $expires, 'created' => time(),
-                         'pass' => ($linkpw !== '') ? password_hash($linkpw, PASSWORD_DEFAULT) : ''];
+                         'pass' => ($linkpw !== '') ? password_hash($linkpw, PASSWORD_DEFAULT) : '',
+                         'preview' => !empty($in['preview'])];
 
 if (!save_data($data)) {
     respond(500, ['ok' => false, 'error' => 'write_failed', 'message' => 'Could not save – check write permissions for urls.json.']);
@@ -142,4 +143,5 @@ respond(201, [
     'title'     => $title,
     'expires'   => $expires,
     'protected' => ($linkpw !== ''),
+    'preview'   => !empty($in['preview']),
 ]);

@@ -35,6 +35,8 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 - **Titel / Notiz** je Link, **Ablaufdatum** (abgelaufene Links liefern `410 Gone`)
 - **Passwortgeschützte Links**: optional je Link ein Passwort – Besucher sehen
   erst eine Passwort-Seite, dann die Weiterleitung (bcrypt, mit Brute-Force-Sperre)
+- **Vorschau-Zwischenseite** (opt-in je Link): zeigt Titel und Ziel-Domain,
+  leitet nach 3 Sekunden automatisch weiter – praktisch für QR-Codes auf Print
 - **Live-Suche**, **Bulk-Aktionen** (verschieben / löschen / Zähler zurücksetzen)
 - **Import / Export** als JSON
 - **HTTP-API** zum Anlegen von Links per Skript, abgesichert über **API-Token**
@@ -152,8 +154,13 @@ verschieben. `index.php` und `admin.php` nutzen automatisch denselben Pfad.
 
 Admin-Oberfläche: `deine-domain.de/goto/admin`
 
-- **Link anlegen:** Ziel-URL eingeben; Kürzel optional (leer = zufälliges
-  6-Zeichen-Kürzel). Optional Gruppe, Ablaufdatum, Titel/Notiz.
+- **Link anlegen:** Ziel-URL eingeben → *Hinzufügen* (leer = zufälliges
+  6-Zeichen-Kürzel). Unter **„Weitere Optionen"** (aufklappbar, Zustand wird
+  gemerkt): Wunsch-Kürzel, Gruppe, Ablaufdatum, Titel/Notiz, Link-Passwort,
+  Vorschau-Seite sowie das Anlegen neuer Gruppen.
+- **Vorschau-Seite:** mit Häkchen „Vorschau-Seite vor der Weiterleitung" sehen
+  Besucher erst Titel + Ziel-Domain und werden nach 3 Sekunden (oder per
+  Klick) weitergeleitet.
 - **QR-Code:** QR-Symbol in der Zeile öffnet den Dialog mit Vorschau,
   Einstellungen und PNG-/SVG-Download.
 - **Verschieben:** per Gruppen-Dropdown oder Drag & Drop auf eine Gruppe.
@@ -206,6 +213,7 @@ benötigte Token jederzeit **widerrufen**.
 | `title` | – | Titel / Notiz |
 | `expires` | – | Ablaufdatum `JJJJ-MM-TT` |
 | `password` | – | Link-Passwort (Besucher müssen es eingeben; nur der Hash wird gespeichert) |
+| `preview` | – | `1` = Vorschau-Zwischenseite vor der Weiterleitung |
 
 Daten als Formularfelder **oder** JSON-Body (`Content-Type: application/json`).
 

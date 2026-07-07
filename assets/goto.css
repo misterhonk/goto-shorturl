@@ -183,6 +183,19 @@ table tr:hover td:last-child{border-top-right-radius:10px;border-bottom-right-ra
 .chip--exp{color:var(--err-fg);background:var(--err-bg);border-color:var(--err-line)}
 .chip--lock{color:var(--muted);background:var(--fill);padding:.14rem .3rem}
 .field--pw{flex:0 0 12rem}
+
+/* Anlege-Formular: aufklappbare Optionen (Progressive Disclosure) */
+.addopts{margin-top:.85rem;padding-top:.75rem;border-top:1px solid var(--line)}
+.addopts summary{cursor:pointer;color:var(--muted);font-size:.85rem;font-weight:500;
+     list-style:none;display:inline-flex;align-items:center;gap:.45rem;padding:.15rem 0}
+.addopts summary::-webkit-details-marker{display:none}
+.addopts summary::before{content:"›";display:inline-block;transition:transform .15s;font-size:1.1em}
+.addopts[open] summary::before{transform:rotate(90deg)}
+.addopts-hint{font-size:.74rem}
+.addopts[open] .addopts-hint{display:none}
+.addopts .bar{margin-top:.7rem}
+.chk--opt{display:flex;margin-top:.75rem}
+.addopts-group{margin-top:.9rem;padding-top:.85rem;border-top:1px solid var(--line)}
 .clickcell{width:1%}
 .clicks{display:inline-flex;align-items:center;gap:.35rem;color:var(--muted);font-size:.82rem;
      font-variant-numeric:tabular-nums}
