@@ -5,6 +5,18 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+### Hinzugefügt
+- **Query-Parameter-Durchreichung:** `goto/kürzel?utm_source=…` hängt die
+  Parameter an die Ziel-URL an (Fragment im Ziel bleibt erhalten; funktioniert
+  auch auf Passwort- und Vorschau-Seiten sowie in Rewrite-Variante B).
+- **Tages-Backups:** beim ersten Speichern eines Tages wandert der Stand nach
+  `backups/urls-JJJJ-MM-TT.json`; die letzten 7 Generationen bleiben erhalten
+  (zusätzlich zur bisherigen `.bak`-Sicherung je Schreibvorgang).
+- **Diagnose-Bereich im Admin:** Ampel-Selbsttest für Schreibrechte,
+  PHP-Version, `mbstring`, Gültigkeit der `urls.json`, HTTPS und Backup-Stand;
+  dazu zwei Browser-Checks (Dateischutz per `.htaccess`, URL-Rewriting –
+  erkennt GOTO-Antworten am neuen `X-Goto-App`-Header).
+
 ## [0.4.0] – 2026-07-07
 
 ### Hinzugefügt

@@ -260,6 +260,13 @@ input.invalid:focus{box-shadow:0 0 0 4px rgba(255,59,48,.18)}
 .slugmono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:.83rem;color:var(--blue)}
 .nowrap{white-space:nowrap}
 
+/* Diagnose-Ampel */
+.diagstat{display:inline-flex;align-items:center;font-size:.72rem;font-weight:600;
+     padding:.14rem .55rem;border-radius:999px;border:1px solid transparent}
+.diagstat--ok{color:var(--ok-fg);background:var(--ok-bg);border-color:var(--ok-line)}
+.diagstat--err{color:var(--err-fg);background:var(--err-bg);border-color:var(--err-line)}
+.diagstat--pend{color:var(--muted);background:var(--fill)}
+
 /* Drag & Drop */
 tr[draggable=true]{cursor:grab}
 tr.dragging{opacity:.4}

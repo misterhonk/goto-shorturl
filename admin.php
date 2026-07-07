@@ -1174,6 +1174,51 @@ unset($_SESSION['new_token']);
   <p class="muted"><?= t('Felder: url (Pflicht), slug, group, title, expires (JJJJ-MM-TT). Antwort als JSON, Limit %d Anfragen/Minute je Token.', 120) ?></p>
 </details>
 
+<?php
+// Selbsttest: PHP-seitige Checks; die HTTP-Checks (Zeilen mit data-diag-fetch)
+// führt app.js per fetch aus, sobald der Bereich geöffnet wird.
+$diagValid = is_file(URLS_FILE)
+    && is_array(json_decode((string) @file_get_contents(URLS_FILE), true))
+    && is_writable(URLS_FILE);
+$diagDays  = glob($dataDir . '/backups/urls-*.json') ?: [];
+$diagBak   = @filemtime(URLS_FILE . '.bak');
+$diagBackupTxt = $diagDays || $diagBak
+    ? t('%d Tages-Backup(s)', count($diagDays)) . ($diagBak ? ' · .bak ' . date('d.m.Y H:i', $diagBak) : '')
+    : t('noch keine – entstehen beim ersten Speichern');
+$diagChecks = [
+    [t('PHP-Version (mind. 8.0)'), PHP_VERSION_ID >= 80000, 'PHP ' . PHP_VERSION],
+    [t('mbstring-Erweiterung'), function_exists('mb_substr'),
+        function_exists('mb_substr') ? t('vorhanden') : t('fehlt – Texte mit Umlauten werden ggf. falsch gekürzt')],
+    [t('Datenverzeichnis beschreibbar'), is_writable($dataDir), $dataDir],
+    [t('urls.json lesbar, gültig & beschreibbar'), $diagValid, t('%d Link(s)', count($links))],
+    [t('HTTPS aktiv'), $https, $https ? '' : t('empfohlen für den Produktivbetrieb')],
+    [t('Backups'), true, $diagBackupTxt],
+];
+?>
+<details class="tools" id="diag" data-l-ok="<?= e(t('OK')) ?>" data-l-err="<?= e(t('Fehler')) ?>">
+  <summary><?= t('Diagnose') ?></summary>
+  <table class="trashlist">
+    <?php foreach ($diagChecks as [$dLabel, $dOk, $dDetail]): ?>
+    <tr>
+      <td><?= e($dLabel) ?></td>
+      <td class="nowrap"><span class="diagstat <?= $dOk ? 'diagstat--ok' : 'diagstat--err' ?>"><?= $dOk ? t('OK') : t('Fehler') ?></span></td>
+      <td class="muted"><?= e($dDetail) ?></td>
+    </tr>
+    <?php endforeach; ?>
+    <tr data-diag-fetch="<?= e($cookieDir) ?>urls.json" data-diag-expect="blocked">
+      <td><?= t('Datenschutz: urls.json ist per HTTP gesperrt') ?></td>
+      <td class="nowrap"><span class="diagstat diagstat--pend">…</span></td>
+      <td class="muted diagdetail"></td>
+    </tr>
+    <tr data-diag-fetch="<?= e($cookieDir) ?>goto-diagtest-<?= bin2hex(random_bytes(3)) ?>" data-diag-expect="rewrite">
+      <td><?= t('URL-Rewriting: Kurzlinks erreichen GOTO') ?></td>
+      <td class="nowrap"><span class="diagstat diagstat--pend">…</span></td>
+      <td class="muted diagdetail"></td>
+    </tr>
+  </table>
+  <p class="muted"><?= t('Die letzten beiden Prüfungen laufen beim Öffnen dieses Bereichs direkt im Browser.') ?></p>
+</details>
+
 <?php if ($trash): ?>
 <details class="tools">
   <summary><?= t('Papierkorb') ?> <span class="count"><?= count($trash) ?></span></summary>

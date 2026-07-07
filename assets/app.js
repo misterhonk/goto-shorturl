@@ -45,6 +45,30 @@
     });
   }
 
+  // Diagnose: HTTP-Prüfungen per fetch, sobald der Bereich geöffnet wird
+  var diag=document.getElementById('diag');
+  if(diag){
+    var diagRan=false;
+    var diagSet=function(row,ok,txt){
+      var s=row.querySelector('.diagstat');
+      if(s){ s.classList.remove('diagstat--pend');
+        s.classList.add(ok?'diagstat--ok':'diagstat--err');
+        s.textContent=ok?(diag.getAttribute('data-l-ok')||'OK'):(diag.getAttribute('data-l-err')||'Fehler'); }
+      var d=row.querySelector('.diagdetail'); if(d) d.textContent=txt||'';
+    };
+    diag.addEventListener('toggle',function(){
+      if(!diag.open||diagRan) return; diagRan=true;
+      diag.querySelectorAll('tr[data-diag-fetch]').forEach(function(row){
+        var url=row.getAttribute('data-diag-fetch'), mode=row.getAttribute('data-diag-expect');
+        fetch(url,{cache:'no-store'}).then(function(r){
+          if(mode==='blocked'){ diagSet(row, r.status!==200, 'HTTP '+r.status); }
+          else{ var viaApp=r.headers.get('X-Goto-App')==='1';
+                diagSet(row, r.status===404&&viaApp, 'HTTP '+r.status+(viaApp?' (GOTO)':'')); }
+        }).catch(function(){ diagSet(row, mode==='blocked', ''); });
+      });
+    });
+  }
+
   // Ablaufdatum zurücksetzen
   document.querySelectorAll('[data-clear-date]').forEach(function(b){
     b.addEventListener('click',function(){

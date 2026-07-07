@@ -37,6 +37,12 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
   erst eine Passwort-Seite, dann die Weiterleitung (bcrypt, mit Brute-Force-Sperre)
 - **Vorschau-Zwischenseite** (opt-in je Link): zeigt Titel und Ziel-Domain,
   leitet nach 3 Sekunden automatisch weiter – praktisch für QR-Codes auf Print
+- **Query-Parameter-Durchreichung**: `goto/kürzel?utm_source=flyer` hängt die
+  Parameter an die Ziel-URL an – ein Kurzlink, Tracking pro Kanal
+- **Tages-Backups**: automatisch beim ersten Speichern des Tages
+  (`backups/`, 7 Generationen) zusätzlich zur `.bak`-Sicherung
+- **Diagnose** im Admin: Ampel-Selbsttest (Schreibrechte, PHP, Rewrite,
+  Dateischutz, HTTPS, Backups) – praktisch nach dem Deployment
 - **Live-Suche**, **Bulk-Aktionen** (verschieben / löschen / Zähler zurücksetzen)
 - **Import / Export** als JSON
 - **HTTP-API** zum Anlegen von Links per Skript, abgesichert über **API-Token**
@@ -325,7 +331,14 @@ Produktiv-Upload.
 | QR-Code zu „voll" | längere URLs → kürzeres Kürzel oder Fehlerkorrektur senken |
 | Favicons fehlen | werden von `icons.duckduckgo.com` geladen; bei Blockade einfach ignorierbar |
 
-Backups: einfach `urls.json` sichern (oder Export-Funktion nutzen).
+Backups: GOTO legt beim ersten Speichern eines Tages automatisch eine Kopie
+unter `backups/urls-JJJJ-MM-TT.json` an (die letzten 7 Tage bleiben erhalten),
+zusätzlich zur `urls.json.bak` bei jedem Schreibvorgang. Für externe Sicherungen
+einfach `urls.json` kopieren oder die Export-Funktion nutzen.
+
+Nach einem Deployment lohnt ein Blick in **Admin → Diagnose**: prüft
+Schreibrechte, PHP-Version, `mbstring`, Dateischutz per `.htaccess`,
+URL-Rewriting, HTTPS und den Backup-Stand mit grün/roter Ampel.
 
 ---
 

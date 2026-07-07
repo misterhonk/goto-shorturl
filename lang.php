@@ -198,6 +198,26 @@ return [
     'Passwort entfernen'                 => 'Remove password',
     'passwortgeschützt'                  => 'password-protected',
 
+    // Diagnose
+    'Diagnose'                           => 'Diagnostics',
+    'Fehler'                             => 'Error',
+    'PHP-Version (mind. 8.0)'            => 'PHP version (8.0+)',
+    'mbstring-Erweiterung'               => 'mbstring extension',
+    'vorhanden'                          => 'available',
+    'fehlt – Texte mit Umlauten werden ggf. falsch gekürzt' => 'missing – non-ASCII text may be truncated incorrectly',
+    'Datenverzeichnis beschreibbar'      => 'Data directory writable',
+    'urls.json lesbar, gültig & beschreibbar' => 'urls.json readable, valid & writable',
+    'HTTPS aktiv'                        => 'HTTPS active',
+    'empfohlen für den Produktivbetrieb' => 'recommended for production',
+    'Backups'                            => 'Backups',
+    '%d Link(s)'                         => '%d link(s)',
+    '%d Tages-Backup(s)'                 => '%d daily backup(s)',
+    'noch keine – entstehen beim ersten Speichern' => 'none yet – created on first save',
+    'Datenschutz: urls.json ist per HTTP gesperrt' => 'Privacy: urls.json is blocked over HTTP',
+    'URL-Rewriting: Kurzlinks erreichen GOTO' => 'URL rewriting: short links reach GOTO',
+    'Die letzten beiden Prüfungen laufen beim Öffnen dieses Bereichs direkt im Browser.'
+        => 'The last two checks run in your browser when this section is opened.',
+
     // Vorschau-Zwischenseite & Anlege-Formular
     'Weitere Optionen'                   => 'More options',
     'Kürzel · Gruppe · Ablauf · Titel · Passwort · Vorschau' => 'slug · group · expiry · title · password · preview',

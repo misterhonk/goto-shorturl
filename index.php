@@ -74,6 +74,22 @@ $isPreviewBot = $target !== null && !$protected && preg_match(
     . '|iframely|embedly/i',
     (string) ($_SERVER['HTTP_USER_AGENT'] ?? '')) === 1;
 
+/* Zusätzliche Query-Parameter des Aufrufs (z. B. ?utm_source=flyer) an die
+ * Ziel-URL anhängen – so lässt sich ein gedruckter Kurzlink pro Kanal tracken.
+ * Ein evtl. Fragment (#…) im Ziel bleibt hinter den Parametern erhalten. */
+function merge_query(string $target): string {
+    $params = $_GET;
+    unset($params['slug']);   // internes Routing-Artefakt (Rewrite-Variante B)
+    if (!$params) return $target;
+    $frag = '';
+    if (($p = strpos($target, '#')) !== false) {
+        $frag   = substr($target, $p);
+        $target = substr($target, 0, $p);
+    }
+    return $target . (strpos($target, '?') === false ? '?' : '&')
+         . http_build_query($params) . $frag;
+}
+
 // Aufruf zählen (reiner Zähler, datensparsam)
 function count_click(string $slug): void {
     $fp = @fopen(CLICKS_FILE, 'c+');
@@ -104,7 +120,7 @@ function count_click(string $slug): void {
 if ($target !== null && !$isPreviewBot && !$protected && !$linkPrev) {
     count_click($slug);
     header('Referrer-Policy: no-referrer');
-    header('Location: ' . $target, true, 302);
+    header('Location: ' . merge_query($target), true, 302);
     exit;
 }
 
@@ -127,6 +143,7 @@ $baseUrl = (is_https() ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? '
 // Kleine, in sich geschlossene Seite: Favicon, Hell/Dunkel-Modus, zentrierte
 // Karte im GOTO-Look. $extraHead/$bodyHtml müssen bereits escaped sein.
 function goto_page(string $lang, string $dirUrl, string $title, string $extraHead, string $bodyHtml): void {
+    header('X-Goto-App: 1');   // Marker für die Diagnose (Rewrite-Check im Admin)
     header('Content-Type: text/html; charset=utf-8');
     $h  = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
     $d  = $h($dirUrl);
@@ -199,7 +216,7 @@ if ($protected) {
             if (isset($att[$attKey])) { unset($att[$attKey]); save_json($attFile, $att); }
             count_click($slug);
             header('Referrer-Policy: no-referrer');
-            header('Location: ' . $target, true, 302);
+            header('Location: ' . merge_query($target), true, 302);
             exit;
         } else {
             $rec['count'] = (int) ($rec['count'] ?? 0) + 1;
@@ -251,13 +268,14 @@ if ($target !== null && !$isPreviewBot) {
      * leitet nach 3 Sekunden automatisch weiter (Button für Sofort-Klick).
      * Der Aufruf zählt hier – der Besucher hat den Link geöffnet. */
     count_click($slug);
+    $dest    = merge_query($target);
     $host    = (string) parse_url($target, PHP_URL_HOST);
     $pgTitle = $linkTitle !== '' ? $linkTitle : 'GOTO – ' . $t('Kurzlink');
-    $extra   = '<meta http-equiv="refresh" content="3;url=' . $ee($target) . '">' . "\n"
+    $extra   = '<meta http-equiv="refresh" content="3;url=' . $ee($dest) . '">' . "\n"
              . '<meta name="referrer" content="no-referrer">' . "\n";
     $body = '<h1>' . $ee($pgTitle) . '</h1>'
           . '<p>' . $ee(sprintf($t('Weiterleitung zu %s'), $host)) . '</p>'
-          . '<a class="btn" href="' . $ee($target) . '" rel="noreferrer">' . $ee($t('Jetzt weiter')) . '</a>'
+          . '<a class="btn" href="' . $ee($dest) . '" rel="noreferrer">' . $ee($t('Jetzt weiter')) . '</a>'
           . '<p class="muted" style="margin-top:.9rem">'
           . sprintf($ee($t('Automatische Weiterleitung in %s Sekunden …')), '<span id="cd">3</span>')
           . '</p>'
@@ -283,10 +301,10 @@ if ($target !== null) {
            . '<meta property="og:image:height" content="630">' . "\n"
            . '<meta name="twitter:card" content="summary_large_image">' . "\n"
            . '<meta name="description" content="' . $ee($ogDesc) . '">' . "\n"
-           . '<meta http-equiv="refresh" content="1;url=' . $ee($target) . '">' . "\n";
+           . '<meta http-equiv="refresh" content="1;url=' . $ee(merge_query($target)) . '">' . "\n";
     $body = '<h1>' . $ee($ogTitle) . '</h1>'
           . '<p>' . $ee($ogDesc) . ' …</p>'
-          . '<a class="btn" href="' . $ee($target) . '">' . $ee($t('Weiter zur Zielseite')) . '</a>';
+          . '<a class="btn" href="' . $ee(merge_query($target)) . '">' . $ee($t('Weiter zur Zielseite')) . '</a>';
     goto_page($lang, $dirUrl, $ogTitle, $extra, $body);
     exit;
 }

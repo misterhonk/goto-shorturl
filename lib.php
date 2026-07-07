@@ -138,7 +138,24 @@ function load_data(): array {
     return normalize_data($raw);
 }
 
+/* Tages-Backup: beim ersten Schreibvorgang eines Tages wandert der aktuelle
+ * Stand nach backups/urls-JJJJ-MM-TT.json; die letzten 7 Tage bleiben erhalten.
+ * (Die .htaccess-Regeln gelten auch im Unterordner – *.json ist gesperrt.) */
+function backup_rotate(): void {
+    $dir   = dirname(URLS_FILE) . '/backups';
+    $today = $dir . '/urls-' . date('Y-m-d') . '.json';
+    if (is_file($today)) return;                       // heute schon gesichert
+    if (!is_dir($dir) && !@mkdir($dir, 0775)) return;  // nicht anlegbar -> still überspringen
+    @copy(URLS_FILE, $today);
+    $files = glob($dir . '/urls-*.json') ?: [];
+    sort($files);
+    while (count($files) > 7) @unlink(array_shift($files));
+}
+
 function save_data(array $d): bool {
-    if (is_file(URLS_FILE)) @copy(URLS_FILE, URLS_FILE . '.bak');   // eine Sicherungs-Generation
+    if (is_file(URLS_FILE)) {
+        @copy(URLS_FILE, URLS_FILE . '.bak');   // letzte Schreib-Generation
+        backup_rotate();                         // + Tages-Generationen (7 Tage)
+    }
     return save_json(URLS_FILE, ['groups' => array_values($d['groups'] ?? []), 'links' => $d['links'] ?? []]);
 }
