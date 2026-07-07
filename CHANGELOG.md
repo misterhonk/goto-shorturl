@@ -5,6 +5,8 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+## [0.3.0] – 2026-07-07
+
 ### Geändert
 - **UI-Redesign im Apple-Look** (HIG-inspiriert): ruhige Flächen (`#f5f5f7`),
   Hairline-Borders, **Glas-Topbar** (sticky, Blur), **Pill-Buttons**, Apple-Blau
@@ -79,6 +81,7 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
   Drag & Drop, Live-Suche sowie Import/Export.
 - Datenbanklos – alle Daten in JSON-Dateien.
 
-[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/misterhonk/goto-shorturl/releases/tag/v0.1.0
