@@ -31,14 +31,16 @@ if ($slug === '') {
     if ($seg !== '' && $seg !== 'index.php') $slug = $seg;
 }
 
-$target  = null;
-$expired = false;
+$target    = null;
+$expired   = false;
+$linkTitle = '';
 
 if ($slug !== '' && isset($links[$slug])) {
     $entry = $links[$slug];
     if (is_array($entry)) {
-        $url     = (string) ($entry['url'] ?? '');
-        $expires = (string) ($entry['expires'] ?? '');
+        $url       = (string) ($entry['url'] ?? '');
+        $expires   = (string) ($entry['expires'] ?? '');
+        $linkTitle = (string) ($entry['title'] ?? '');
         if ($expires !== '' && $expires < date('Y-m-d')) $expired = true;
         elseif ($url !== '')                              $target = $url;
     } else {
@@ -54,7 +56,17 @@ if ($target !== null) {
 
 if (is_https()) header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
 
-if ($target !== null) {
+/* Link-Preview-Bots (WhatsApp, Slack, …) bekommen statt des 302 eine kleine
+ * Seite mit Open-Graph-Daten (Titel aus dem Eintrag) – Crawler würden der
+ * Weiterleitung sonst bis zur Zielseite folgen und deren Vorschau zeigen.
+ * Menschen erhalten weiterhin sofort das 302; Bot-Aufrufe zählen nicht als Klick. */
+$isPreviewBot = $target !== null && preg_match(
+    '/facebookexternalhit|whatsapp|twitterbot|slackbot|slack-imgproxy|telegrambot'
+    . '|linkedinbot|discordbot|pinterest|skypeuripreview|mastodon|bluesky|redditbot'
+    . '|iframely|embedly/i',
+    (string) ($_SERVER['HTTP_USER_AGENT'] ?? '')) === 1;
+
+if ($target !== null && !$isPreviewBot) {
     // Aufruf zählen (reiner Zähler, datensparsam)
     $fp = @fopen(CLICKS_FILE, 'c+');
     if ($fp && flock($fp, LOCK_EX)) {
@@ -85,28 +97,99 @@ if ($target !== null) {
     exit;
 }
 
-// Sprache nur im Fehlerfall laden (Hot-Path der Weiterleitung bleibt schlank).
+/* ---- Ab hier keine Weiterleitung: Bot-Vorschau oder Fehlerseite ---- */
+
+// Sprache nur hier laden (Hot-Path der Weiterleitung oben bleibt schlank).
 // Wie admin.php: Cookie > config.php > Deutsch; Übersetzung über lang.php.
 $LANG_EN = (array) (@include __DIR__ . '/lang.php');
 $lang = 'de';
-if (in_array((string) ($_COOKIE['goto_lang'] ?? ''), ['de', 'en'], true))                 $lang = (string) $_COOKIE['goto_lang'];
-elseif (is_array($cfg) && in_array((string) ($cfg['lang'] ?? ''), ['de', 'en'], true))     $lang = (string) $cfg['lang'];
+if (in_array((string) ($_COOKIE['goto_lang'] ?? ''), ['de', 'en'], true))              $lang = (string) $_COOKIE['goto_lang'];
+elseif (is_array($cfg) && in_array((string) ($cfg['lang'] ?? ''), ['de', 'en'], true)) $lang = (string) $cfg['lang'];
 $t = function (string $de) use ($lang, $LANG_EN): string {
     return ($lang === 'en' && isset($LANG_EN[$de])) ? $LANG_EN[$de] : $de;
 };
 $ee = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 
-http_response_code($expired ? 410 : 404);
-header('Content-Type: text/html; charset=utf-8');
-$msg = $expired
-    ? $t('Dieser Link ist abgelaufen.')
-    : $t('Diese Kurz-URL existiert nicht (mehr).');
-?><!DOCTYPE html>
-<html lang="<?= $ee($lang) ?>">
+$dirUrl  = rtrim(dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/')), '/') . '/';
+$baseUrl = (is_https() ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $dirUrl;
+
+// Kleine, in sich geschlossene Seite: Favicon, Hell/Dunkel-Modus, zentrierte
+// Karte im GOTO-Look. $extraHead/$bodyHtml müssen bereits escaped sein.
+function goto_page(string $lang, string $dirUrl, string $title, string $extraHead, string $bodyHtml): void {
+    header('Content-Type: text/html; charset=utf-8');
+    $h  = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+    $d  = $h($dirUrl);
+    $ti = $h($title);
+    $la = $h($lang);
+    echo <<<HTML
+<!DOCTYPE html>
+<html lang="{$la}">
+<head>
 <meta charset="utf-8">
-<title><?= $ee($expired ? $t('Abgelaufen') : $t('Nicht gefunden')) ?></title>
-<body style="font:16px/1.5 system-ui,sans-serif;max-width:30rem;margin:4rem auto;padding:0 1rem;color:#1f2328">
-  <h1 style="font-size:1.2rem"><?= $ee($expired ? $t('Link abgelaufen') : $t('Kurz-URL nicht gefunden')) ?></h1>
-  <p style="color:#6b7280"><?= $ee($msg) ?></p>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="{$d}assets/favicon.svg">
+<link rel="icon" href="{$d}favicon.ico" sizes="48x48">
+<link rel="apple-touch-icon" href="{$d}assets/apple-touch-icon.png">
+<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1014" media="(prefers-color-scheme: dark)">
+<title>{$ti}</title>
+{$extraHead}<style>
+:root{--bg:#f4f5f7;--card:#fff;--fg:#1f2328;--muted:#6b7280;--line:#ebedf0}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1014;--card:#171a21;--fg:#e7e9ec;--muted:#99a1ad;--line:#242935}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--fg);
+     font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;padding:1rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:2.2rem 2rem;
+      max-width:26rem;width:100%;text-align:center;
+      box-shadow:0 1px 2px rgba(16,24,40,.04),0 6px 20px rgba(16,24,40,.06)}
+.mark{display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;
+      border-radius:16px;background:linear-gradient(135deg,#6366f1,#2563eb)}
+.mark svg{width:30px;height:30px}
+h1{font-size:1.15rem;margin:1rem 0 .35rem}
+p{color:var(--muted);margin:.25rem 0;overflow-wrap:anywhere}
+.btn{display:inline-block;margin-top:1.1rem;padding:.6rem 1.2rem;border-radius:10px;font-weight:600;
+     background:linear-gradient(135deg,#6366f1,#2563eb);color:#fff;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="card">
+<span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h12M12 6l6 6-6 6"/></svg></span>
+{$bodyHtml}
+</div>
 </body>
 </html>
+HTML;
+}
+
+if ($target !== null) {
+    // Bot-Vorschau: Open-Graph-Daten mit dem Titel aus dem Eintrag.
+    $host     = (string) parse_url($target, PHP_URL_HOST);
+    $ogTitle  = $linkTitle !== '' ? $linkTitle : 'GOTO – ' . $t('Kurzlink');
+    $ogDesc   = sprintf($t('Weiterleitung zu %s'), $host);
+    $shortUrl = $baseUrl . rawurlencode($slug);
+    $extra = '<meta property="og:type" content="website">' . "\n"
+           . '<meta property="og:site_name" content="GOTO">' . "\n"
+           . '<meta property="og:title" content="' . $ee($ogTitle) . '">' . "\n"
+           . '<meta property="og:description" content="' . $ee($ogDesc) . '">' . "\n"
+           . '<meta property="og:url" content="' . $ee($shortUrl) . '">' . "\n"
+           . '<meta property="og:image" content="' . $ee($baseUrl . 'assets/og.png') . '">' . "\n"
+           . '<meta property="og:image:width" content="1200">' . "\n"
+           . '<meta property="og:image:height" content="630">' . "\n"
+           . '<meta name="twitter:card" content="summary_large_image">' . "\n"
+           . '<meta name="description" content="' . $ee($ogDesc) . '">' . "\n"
+           . '<meta http-equiv="refresh" content="1;url=' . $ee($target) . '">' . "\n";
+    $body = '<h1>' . $ee($ogTitle) . '</h1>'
+          . '<p>' . $ee($ogDesc) . ' …</p>'
+          . '<a class="btn" href="' . $ee($target) . '">' . $ee($t('Weiter zur Zielseite')) . '</a>';
+    goto_page($lang, $dirUrl, $ogTitle, $extra, $body);
+    exit;
+}
+
+http_response_code($expired ? 410 : 404);
+$msg  = $expired
+    ? $t('Dieser Link ist abgelaufen.')
+    : $t('Diese Kurz-URL existiert nicht (mehr).');
+$body = '<h1>' . $ee($expired ? $t('Link abgelaufen') : $t('Kurz-URL nicht gefunden')) . '</h1>'
+      . '<p>' . $ee($msg) . '</p>';
+goto_page($lang, $dirUrl, $expired ? $t('Abgelaufen') : $t('Nicht gefunden'), '', $body);

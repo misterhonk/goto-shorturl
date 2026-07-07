@@ -16,10 +16,11 @@ cd "$(dirname "$0")"
 DEST="${1:-dist}"
 
 # Immer ausliefern (Anwendungscode + Schutzregeln) im Wurzelordner:
-CODE=(index.php admin.php api.php lib.php lang.php .htaccess)
+CODE=(index.php admin.php api.php lib.php lang.php .htaccess favicon.ico)
 
 # Statische Assets – landen im Unterordner assets/ (Pfad muss erhalten bleiben):
-ASSETS=(assets/goto.css assets/app.js assets/qr.js)
+ASSETS=(assets/goto.css assets/app.js assets/qr.js
+        assets/favicon.svg assets/apple-touch-icon.png assets/og.png)
 
 # Nur bei Erstinstallation (nicht überschreiben, falls am Ziel vorhanden):
 FIRST=(config.php urls.example.json)

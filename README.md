@@ -34,6 +34,9 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 - **Live-Suche**, **Bulk-Aktionen** (verschieben / löschen / Zähler zurücksetzen)
 - **Import / Export** als JSON
 - **HTTP-API** zum Anlegen von Links per Skript, abgesichert über **API-Token**
+- **Social-Media-Vorschau**: beim Teilen eines Kurzlinks (WhatsApp, Slack, …)
+  zeigt die Vorschau den **Titel aus dem Eintrag** samt GOTO-Vorschaubild
+- **Favicon & Theme-Color** im Marken-Design, gestaltete 404/410-Seiten
 - **Inline-Validierung** der URL, **Toast-Meldungen**
 - **„Angemeldet bleiben"** (sichere Token)
 - Modernes, responsives UI inkl. **Dark Mode**
@@ -50,7 +53,8 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 | `lib.php` | Gemeinsame Basis (Bootstrap, Datenmodell, Helfer) für die drei oben |
 | `config.php` | Konfiguration (Passwort-Hash, Timeouts, Datenpfad) |
 | `deploy.sh` | Baut einen vollständigen Upload-Satz in `dist/` *(nur Dev)* |
-| `assets/` | Statisches Frontend: `goto.css`, `app.js`, `qr.js` (QR-Encoder) |
+| `assets/` | Statisches Frontend: `goto.css`, `app.js`, `qr.js` (QR-Encoder), Icons (`favicon.svg`, `apple-touch-icon.png`, `og.png`) |
+| `favicon.ico` | Fallback-Favicon für ältere Browser |
 | `.htaccess` | URL-Rewriting + Schutz sensibler Dateien |
 | `urls.json` | Datenbestand (Gruppen + Links) |
 | `clicks.json` | Aufruf-Zähler *(wird automatisch angelegt)* |
@@ -155,6 +159,17 @@ Admin-Oberfläche: `deine-domain.de/goto/admin`
   ersetzen oder zusammenführen; Klick-Zähler werden nicht exportiert.
 
 Öffentlicher Link-Aufbau: `deine-domain.de/goto/kürzel`
+
+### Link-Vorschau beim Teilen
+
+Wird ein Kurzlink in WhatsApp, Slack, Telegram & Co. geteilt, zeigt die
+Vorschau **Titel des Eintrags**, Ziel-Host und ein GOTO-Vorschaubild.
+Technisch: Preview-Crawler werden am User-Agent erkannt und bekommen eine
+kleine Open-Graph-Seite statt der Weiterleitung; normale Besucher erhalten
+weiterhin sofort das 302. Bot-Aufrufe zählen dabei **nicht** als Klick.
+
+> Hinweis: Der Link-**Titel wird dadurch öffentlich sichtbar** (für jeden, der
+> den Kurzlink kennt). Interne Notizen also besser nicht ins Titel-Feld.
 
 ---
 

@@ -266,6 +266,11 @@ function head(string $title, string $nonce): void {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="<?= e($dir) ?>assets/favicon.svg">
+<link rel="icon" href="<?= e($dir) ?>favicon.ico" sizes="48x48">
+<link rel="apple-touch-icon" href="<?= e($dir) ?>assets/apple-touch-icon.png">
+<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1014" media="(prefers-color-scheme: dark)">
 <title><?= e($title) ?></title>
 <script nonce="<?= $nonce ?>">(function(){try{var t=localStorage.getItem('goto-theme');if(t&&t!=='system')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
 <link rel="stylesheet" href="<?= e($dir) ?>assets/goto.css?v=<?= (int) @filemtime(__DIR__ . '/assets/goto.css') ?>">

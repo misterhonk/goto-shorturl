@@ -15,6 +15,14 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
   `dist/assets/` ab.
 
 ### Hinzugefügt
+- **Favicon & Browser-Meta:** Favicon (SVG + ICO + Apple-Touch-Icon im
+  Marken-Design) und `theme-color` (hell/dunkel) für Admin- und öffentliche Seiten.
+- **Social-Media-Vorschau:** Link-Preview-Bots (WhatsApp, Slack, Telegram,
+  Facebook, X, Discord, …) erhalten statt der Weiterleitung eine Open-Graph-Seite
+  mit dem **Titel aus dem Eintrag**, Ziel-Host und Vorschaubild (`assets/og.png`).
+  Menschen bekommen weiterhin sofort das 302; Bot-Aufrufe zählen nicht als Klick.
+- **Fehlerseiten im GOTO-Look:** 404/410 jetzt als gestaltete Karte mit Logo,
+  Hell-/Dunkel-Modus und Favicon (weiterhin zweisprachig).
 - `deploy.sh` baut einen vollständigen Upload-Satz nach `dist/` (verhindert das
   versehentliche Vergessen einzelner Dateien beim FTP-Upload).
 

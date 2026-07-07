@@ -170,6 +170,11 @@ return [
     'API-Token widerrufen.'             => 'API token revoked.',
     'Bitte einen Namen für den Token angeben.' => 'Please provide a name for the token.',
 
+    // Bot-Vorschau / Link-Preview (index.php)
+    'Kurzlink'                           => 'Short link',
+    'Weiterleitung zu %s'                => 'Redirecting to %s',
+    'Weiter zur Zielseite'               => 'Continue to destination',
+
     // Öffentliche Fehlerseiten (index.php)
     'Nicht gefunden'                     => 'Not found',
     'Abgelaufen'                         => 'Expired',
