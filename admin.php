@@ -15,7 +15,6 @@ require __DIR__ . '/lib.php';   // Bootstrap ($cfg, $dataDir, Konstanten) + Helf
 define('ATTEMPTS_FILE', $dataDir . '/.ht_attempts.json');
 define('TOKENS_FILE',   $dataDir . '/.ht_tokens.json');
 define('AUTH_FILE',     $dataDir . '/.ht_auth.json');
-define('TRASH_FILE',    $dataDir . '/.ht_trash.json');
 define('SHOW_FAVICONS', (bool) ($cfg['favicons'] ?? true));
 
 // Sprache: Cookie > config.php > Deutsch. Übersetzung über lang.php (Fallback: Deutsch).
@@ -52,23 +51,7 @@ function host_of(string $url): string {
     return (string) parse_url($url, PHP_URL_HOST);
 }
 
-/* ---- Klicks / Papierkorb / API-Token ----------------------------- */
-
-function load_clicks(): array  { return load_json(CLICKS_FILE); }
-function save_clicks(array $c): bool { return save_json(CLICKS_FILE, $c); }
-
-// Klick-Datensatz kann int (Alt-Format) oder {t:total, d:{tag:n}} sein
-function clicks_total(array $clicks, string $slug): int {
-    $c = $clicks[$slug] ?? 0;
-    return is_array($c) ? (int) ($c['t'] ?? 0) : (int) $c;
-}
-function clicks_days(array $clicks, string $slug): array {
-    $c = $clicks[$slug] ?? null;
-    return (is_array($c) && isset($c['d']) && is_array($c['d'])) ? $c['d'] : [];
-}
-
-function load_trash(): array  { return load_json(TRASH_FILE); }
-function save_trash(array $t): bool { return save_json(TRASH_FILE, $t); }
+/* ---- API-Token ----------------------------------------------------- */
 
 function load_api_tokens(): array  { return load_json(API_TOKENS_FILE); }
 function save_api_tokens(array $t): bool { return save_json(API_TOKENS_FILE, $t); }

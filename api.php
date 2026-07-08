@@ -2,20 +2,23 @@
 declare(strict_types=1);
 
 /* ------------------------------------------------------------------ *
- *  GOTO  –  HTTP-API zum Anlegen von Kurz-URLs
+ *  GOTO  –  HTTP-API (CRUD) für Kurz-URLs
  *
  *  Authentifizierung per Token (im Admin unter „API-Zugang" erstellt):
  *      Authorization: Bearer goto_<id>_<secret>
  *    Alternativ als Header  X-Api-Key:  oder Feld  token=  (Body/Query).
  *
- *  Anlegen (POST), Felder als Formular ODER JSON-Body:
- *      url      (Pflicht, http/https)
- *      slug     (optional; leer = zufälliges Kürzel)
- *      group    (optional; wird bei Bedarf angelegt)
- *      title    (optional)
- *      expires  (optional, JJJJ-MM-TT)
+ *  Methoden (Felder als Formular, JSON-Body oder Query):
+ *      GET              Liste aller Links (mit Klick-Summen)
+ *      GET    ?slug=…   Details eines Links inkl. Tages-Klickwerten
+ *      POST             Anlegen: url (Pflicht), slug, group, title,
+ *                       expires (JJJJ-MM-TT), password, preview
+ *      PATCH            Ändern: slug (Kennung) + beliebige der Felder
+ *                       url, title, group, expires, password (""=weg),
+ *                       preview, newslug (umbenennen)
+ *      DELETE ?slug=…   In den Papierkorb (Wiederherstellen im Admin)
  *
- *  Antwort ist immer JSON. Erfolg: 201 { ok:true, slug, short_url, … }.
+ *  Antwort ist immer JSON ({ ok:true, … } bzw. { ok:false, error }).
  *  Datenmodell, Validierung und Bootstrap kommen aus lib.php.
  * ------------------------------------------------------------------ */
 
@@ -41,14 +44,19 @@ function api_base(): string {
     return (is_https() ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $dir;
 }
 
-/* ---- Eingabe einlesen (Formular oder JSON-Body) ------------------- */
+/* ---- Eingabe einlesen (Formular, JSON-Body oder Query) ------------ */
 
-$ctype = strtolower((string) ($_SERVER['CONTENT_TYPE'] ?? ''));
-$in    = $_POST;
+$method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+$ctype  = strtolower((string) ($_SERVER['CONTENT_TYPE'] ?? ''));
+$in     = $_POST;
 if (strpos($ctype, 'application/json') !== false) {
     $body = json_decode((string) file_get_contents('php://input'), true);
     if (is_array($body)) $in = $body;
+} elseif ($in === [] && in_array($method, ['PATCH', 'DELETE'], true)) {
+    // PHP füllt $_POST nur bei POST – Formular-Body bei PATCH/DELETE selbst parsen
+    parse_str((string) file_get_contents('php://input'), $in);
 }
+$in += $_GET;   // Query-Parameter als Fallback (Body hat Vorrang)
 
 /* ---- Token ermitteln --------------------------------------------- */
 
@@ -95,14 +103,126 @@ $rec['calls'] = (int) ($rec['calls'] ?? 0) + 1;
 $tokens[$id]  = $rec;
 save_json(API_TOKENS_FILE, $tokens);
 
-/* ---- Nur POST legt an -------------------------------------------- */
+/* ---- Routing: GET liest, POST legt an, PATCH ändert, DELETE löscht */
 
-if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
-    header('Allow: POST');
-    respond(405, ['ok' => false, 'error' => 'method_not_allowed', 'message' => 'Use POST to create a short URL.']);
+// Öffentliche Sicht auf einen Eintrag (ohne Passwort-Hash)
+function link_out(string $slug, array $l, array $clicks, bool $withDays = false): array {
+    $o = [
+        'slug'      => $slug,
+        'short_url' => api_base() . $slug,
+        'url'       => (string) $l['url'],
+        'group'     => (string) $l['group'],
+        'title'     => (string) $l['title'],
+        'expires'   => (string) $l['expires'],
+        'created'   => (int) $l['created'],
+        'protected' => ($l['pass'] ?? '') !== '',
+        'preview'   => !empty($l['preview']),
+        'clicks'    => clicks_total($clicks, $slug),
+    ];
+    if ($withDays) {
+        $days = clicks_days($clicks, $slug);
+        $o['clicks_today'] = (int) ($days[date('Y-m-d')] ?? 0);
+        $o['clicks_days']  = (object) $days;
+    }
+    return $o;
 }
 
-/* ---- Kurz-URL anlegen -------------------------------------------- */
+$data = load_data();
+
+if ($method === 'GET') {
+    $clicks = load_clicks();
+    $slug   = clean_slug((string) ($in['slug'] ?? ''));
+    if ($slug !== '') {
+        if (!isset($data['links'][$slug])) {
+            respond(404, ['ok' => false, 'error' => 'not_found', 'slug' => $slug]);
+        }
+        respond(200, ['ok' => true, 'link' => link_out($slug, $data['links'][$slug], $clicks, true)]);
+    }
+    $out = [];
+    foreach ($data['links'] as $s => $l) $out[] = link_out($s, $l, $clicks);
+    respond(200, ['ok' => true, 'count' => count($out), 'groups' => $data['groups'], 'links' => $out]);
+}
+
+if ($method === 'DELETE') {
+    $slug = clean_slug((string) ($in['slug'] ?? ''));
+    if ($slug === '' || !isset($data['links'][$slug])) {
+        respond(404, ['ok' => false, 'error' => 'not_found', 'slug' => $slug]);
+    }
+    // Wie im Admin: in den Papierkorb, Klick-Zähler wandert mit
+    $cl = load_clicks();
+    $tr = load_trash();
+    $tr[$slug]            = $data['links'][$slug];
+    $tr[$slug]['deleted'] = time();
+    $tr[$slug]['clicks']  = $cl[$slug] ?? 0;
+    unset($data['links'][$slug], $cl[$slug]);
+    if (!save_data($data)) {
+        respond(500, ['ok' => false, 'error' => 'write_failed', 'message' => 'Could not save – check write permissions.']);
+    }
+    save_clicks($cl);
+    save_trash($tr);
+    respond(200, ['ok' => true, 'deleted' => $slug, 'trash' => true]);
+}
+
+if ($method === 'PATCH') {
+    $slug = clean_slug((string) ($in['slug'] ?? ''));
+    if ($slug === '' || !isset($data['links'][$slug])) {
+        respond(404, ['ok' => false, 'error' => 'not_found', 'slug' => $slug]);
+    }
+    $l = $data['links'][$slug];
+    if (array_key_exists('url', $in)) {
+        $u = trim((string) $in['url']);
+        if (!valid_url($u)) {
+            respond(422, ['ok' => false, 'error' => 'invalid_url', 'message' => 'Field "url" must be a valid http(s) URL.']);
+        }
+        $l['url'] = $u;
+    }
+    if (array_key_exists('title', $in))   $l['title'] = clean_title((string) $in['title']);
+    if (array_key_exists('expires', $in)) $l['expires'] = clean_date((string) $in['expires']);
+    if (array_key_exists('preview', $in)) $l['preview'] = filter_var($in['preview'], FILTER_VALIDATE_BOOL);
+    if (array_key_exists('password', $in)) {
+        $pw = (string) $in['password'];
+        $l['pass'] = $pw === '' ? '' : password_hash($pw, PASSWORD_DEFAULT);   // "" entfernt das Passwort
+    }
+    if (array_key_exists('group', $in)) {
+        $g = clean_group((string) $in['group']);
+        if ($g !== '' && !in_array($g, $data['groups'], true)) $data['groups'][] = $g;
+        $l['group'] = $g;
+    }
+    $new = $slug;
+    if (array_key_exists('newslug', $in)) {
+        $new = clean_slug((string) $in['newslug']);
+        if ($new === '') {
+            respond(422, ['ok' => false, 'error' => 'invalid_slug', 'message' => 'Field "newslug" must contain a-z, 0-9 or "-".']);
+        }
+        if (in_array($new, ['admin', 'index', 'api'], true)) {
+            respond(409, ['ok' => false, 'error' => 'reserved_slug', 'slug' => $new, 'message' => 'This slug is reserved.']);
+        }
+        if ($new !== $slug && isset($data['links'][$new])) {
+            respond(409, ['ok' => false, 'error' => 'slug_taken', 'slug' => $new, 'message' => 'Slug already in use.']);
+        }
+    }
+    if ($new === $slug) {
+        $data['links'][$slug] = $l;
+    } else {
+        // Schlüssel umbenennen (Reihenfolge erhalten), Klick-Zähler mitnehmen
+        $rebuilt = [];
+        foreach ($data['links'] as $k => $v) $rebuilt[$k === $slug ? $new : $k] = $k === $slug ? $l : $v;
+        $data['links'] = $rebuilt;
+        $cl = load_clicks();
+        if (isset($cl[$slug])) { $cl[$new] = $cl[$slug]; unset($cl[$slug]); save_clicks($cl); }
+    }
+    if (!save_data($data)) {
+        respond(500, ['ok' => false, 'error' => 'write_failed', 'message' => 'Could not save – check write permissions.']);
+    }
+    respond(200, ['ok' => true, 'link' => link_out($new, $data['links'][$new], load_clicks())]);
+}
+
+if ($method !== 'POST') {
+    header('Allow: GET, POST, PATCH, DELETE');
+    respond(405, ['ok' => false, 'error' => 'method_not_allowed', 'message' => 'Use GET, POST, PATCH or DELETE.']);
+}
+
+/* ---- POST: Kurz-URL anlegen ---------------------------------------- */
 
 $url     = trim((string) ($in['url'] ?? ''));
 $slug    = clean_slug((string) ($in['slug'] ?? ''));
@@ -115,7 +235,6 @@ if (!valid_url($url)) {
     respond(422, ['ok' => false, 'error' => 'invalid_url', 'message' => 'Field "url" must be a valid http(s) URL.']);
 }
 
-$data = load_data();
 if ($slug === '') $slug = random_slug($data['links']);
 if (in_array($slug, ['admin', 'index', 'api'], true)) {
     respond(409, ['ok' => false, 'error' => 'reserved_slug', 'slug' => $slug, 'message' => 'This slug is reserved.']);
@@ -128,7 +247,7 @@ if ($group !== '' && !in_array($group, $data['groups'], true)) $data['groups'][]
 $data['links'][$slug] = ['url' => $url, 'group' => $group, 'title' => $title,
                          'expires' => $expires, 'created' => time(),
                          'pass' => ($linkpw !== '') ? password_hash($linkpw, PASSWORD_DEFAULT) : '',
-                         'preview' => !empty($in['preview'])];
+                         'preview' => filter_var($in['preview'] ?? false, FILTER_VALIDATE_BOOL)];
 
 if (!save_data($data)) {
     respond(500, ['ok' => false, 'error' => 'write_failed', 'message' => 'Could not save – check write permissions for urls.json.']);
@@ -143,5 +262,5 @@ respond(201, [
     'title'     => $title,
     'expires'   => $expires,
     'protected' => ($linkpw !== ''),
-    'preview'   => !empty($in['preview']),
+    'preview'   => filter_var($in['preview'] ?? false, FILTER_VALIDATE_BOOL),
 ]);

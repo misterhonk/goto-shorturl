@@ -5,6 +5,17 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+### Hinzugefügt
+- **API-CRUD:** die HTTP-API kann jetzt vollständig lesen und schreiben –
+  `GET` (Liste mit Klick-Summen bzw. `?slug=…` mit Tageswerten), `PATCH`
+  (Felder ändern, Passwort setzen/entfernen, Kürzel umbenennen inkl.
+  Klick-Migration) und `DELETE` (in den Papierkorb). Formular-, JSON- und
+  Query-Eingaben; Passwort-Hashes werden nie ausgegeben.
+
+### Geändert
+- Klick- und Papierkorb-Helfer von `admin.php` nach `lib.php` verschoben
+  (werden jetzt auch von der API genutzt).
+
 ## [0.6.0] – 2026-07-08
 
 ### Hinzugefügt

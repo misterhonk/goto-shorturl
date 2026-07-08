@@ -33,6 +33,7 @@ $dataDir = rtrim((string) ($cfg['data_dir'] ?? __DIR__), '/');
 // Von allen Einstiegspunkten genutzte Dateien.
 define('URLS_FILE',       $dataDir . '/urls.json');
 define('CLICKS_FILE',     $dataDir . '/clicks.json');
+define('TRASH_FILE',      $dataDir . '/.ht_trash.json');
 define('API_TOKENS_FILE', $dataDir . '/.ht_apitokens.json');
 
 /* ---- HTTPS-Erkennung (inkl. Reverse-Proxy) ----------------------- */
@@ -159,3 +160,21 @@ function save_data(array $d): bool {
     }
     return save_json(URLS_FILE, ['groups' => array_values($d['groups'] ?? []), 'links' => $d['links'] ?? []]);
 }
+
+/* ---- Klicks & Papierkorb (Admin + API) ---------------------------- */
+
+function load_clicks(): array  { return load_json(CLICKS_FILE); }
+function save_clicks(array $c): bool { return save_json(CLICKS_FILE, $c); }
+
+// Klick-Datensatz kann int (Alt-Format) oder {t:total, d:{tag:n}} sein
+function clicks_total(array $clicks, string $slug): int {
+    $c = $clicks[$slug] ?? 0;
+    return is_array($c) ? (int) ($c['t'] ?? 0) : (int) $c;
+}
+function clicks_days(array $clicks, string $slug): array {
+    $c = $clicks[$slug] ?? null;
+    return (is_array($c) && isset($c['d']) && is_array($c['d'])) ? $c['d'] : [];
+}
+
+function load_trash(): array  { return load_json(TRASH_FILE); }
+function save_trash(array $t): bool { return save_json(TRASH_FILE, $t); }

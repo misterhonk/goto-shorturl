@@ -235,42 +235,60 @@ anlegen. Der Token wird **nur einmalig** im Klartext angezeigt (serverseitig
 liegt nur ein SHA-256-Hash) — also gleich sicher notieren. Nicht mehr
 benötigte Token jederzeit **widerrufen**.
 
-**Endpoint:** `POST deine-domain.de/goto/api.php`
+**Endpoint:** `deine-domain.de/goto/api.php`
 **Authentifizierung:** `Authorization: Bearer goto_…`
 (alternativ Header `X-Api-Key:` oder Feld `token=`).
+Daten als Formularfelder, JSON-Body (`Content-Type: application/json`)
+oder Query-Parameter.
 
-| Feld | Pflicht | Beschreibung |
+| Methode | Zweck |
+|---|---|
+| `GET` | Liste aller Links (inkl. Klick-Summen und Gruppen) |
+| `GET ?slug=…` | Details eines Links inkl. `clicks_today` und Tageswerten (`clicks_days`) |
+| `POST` | Link anlegen |
+| `PATCH` | Link ändern (`slug` = Kennung; nur übergebene Felder werden geändert) |
+| `DELETE ?slug=…` | Link in den Papierkorb (Wiederherstellen im Admin möglich) |
+
+Felder für `POST`/`PATCH`:
+
+| Feld | POST | Beschreibung |
 |---|---|---|
-| `url` | ✓ | Ziel-URL (`http`/`https`) |
-| `slug` | – | Wunsch-Kürzel; leer = zufällig |
+| `url` | Pflicht | Ziel-URL (`http`/`https`) |
+| `slug` | – | Wunsch-Kürzel; leer = zufällig (bei `PATCH`: Pflicht, als Kennung) |
+| `newslug` | – | nur `PATCH`: Kürzel umbenennen (Klick-Zähler wandert mit) |
 | `group` | – | Gruppe (wird bei Bedarf angelegt) |
 | `title` | – | Titel / Notiz |
-| `expires` | – | Ablaufdatum `JJJJ-MM-TT` |
-| `password` | – | Link-Passwort (Besucher müssen es eingeben; nur der Hash wird gespeichert) |
-| `preview` | – | `1` = Vorschau-Zwischenseite vor der Weiterleitung |
-
-Daten als Formularfelder **oder** JSON-Body (`Content-Type: application/json`).
+| `expires` | – | Ablaufdatum `JJJJ-MM-TT` (leer = kein Ablauf) |
+| `password` | – | Link-Passwort (nur Hash gespeichert; bei `PATCH`: `""` entfernt es) |
+| `preview` | – | `1`/`true` = Vorschau-Zwischenseite vor der Weiterleitung |
 
 ```bash
+# Anlegen
 curl -X POST https://deine-domain.de/goto/api.php \
   -H "Authorization: Bearer goto_…" \
-  -d "url=https://ziel-adresse.de/lange/seite" \
-  -d "slug=mein-kuerzel"
+  -d "url=https://ziel-adresse.de/lange/seite" -d "slug=mein-kuerzel"
+
+# Liste mit Klickzahlen / Details mit Tageswerten
+curl -H "Authorization: Bearer goto_…" https://deine-domain.de/goto/api.php
+curl -H "Authorization: Bearer goto_…" "https://deine-domain.de/goto/api.php?slug=mein-kuerzel"
+
+# Ändern (nur die übergebenen Felder)
+curl -X PATCH https://deine-domain.de/goto/api.php \
+  -H "Authorization: Bearer goto_…" \
+  -d "slug=mein-kuerzel" -d "title=Neuer Titel" -d "expires=2027-01-01"
+
+# Löschen (in den Papierkorb)
+curl -X DELETE -H "Authorization: Bearer goto_…" \
+  "https://deine-domain.de/goto/api.php?slug=mein-kuerzel"
 ```
 
-Antwort bei Erfolg (`201`):
-
-```json
-{ "ok": true, "slug": "mein-kuerzel",
-  "short_url": "https://deine-domain.de/goto/mein-kuerzel",
-  "url": "https://ziel-adresse.de/lange/seite",
-  "group": "", "title": "", "expires": "" }
-```
-
-Fehler liefern passenden Status + `{ "ok": false, "error": "…" }`:
-`401` (Token fehlt/ungültig), `422` (URL ungültig), `409` (Kürzel vergeben
-oder reserviert), `429` (Rate-Limit, **120 Anfragen/Min.** je Token),
-`405` (nur `POST`).
+Antworten sind JSON: Erfolg `{ "ok": true, … }` (Anlegen: `201`, sonst `200`);
+Link-Objekte enthalten `slug`, `short_url`, `url`, `group`, `title`, `expires`,
+`created`, `protected`, `preview`, `clicks` – Passwort-Hashes werden **nie**
+ausgegeben. Fehler liefern passenden Status + `{ "ok": false, "error": "…" }`:
+`401` (Token), `404` (Kürzel unbekannt), `422` (URL/Kürzel ungültig),
+`409` (Kürzel vergeben oder reserviert), `429` (Rate-Limit, **120
+Anfragen/Min.** je Token), `405` (Methode).
 
 > Auf manchen Hostern (CGI/FPM) wird der `Authorization`-Header entfernt; die
 > mitgelieferte `.htaccess` reicht ihn an PHP durch. Klappt das nicht, den
