@@ -5,6 +5,8 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+## [0.7.1] – 2026-07-09
+
 ### Sicherheit
 - **Öffentliche Seiten gehärtet:** Passwort-, Vorschau- und Fehlerseiten senden
   jetzt `X-Frame-Options: DENY`, `X-Content-Type-Options`, `Referrer-Policy`,
@@ -167,7 +169,8 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
   Drag & Drop, Live-Suche sowie Import/Export.
 - Datenbanklos – alle Daten in JSON-Dateien.
 
-[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/misterhonk/goto-shorturl/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.4.0...v0.5.0
