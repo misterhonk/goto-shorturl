@@ -198,6 +198,34 @@ return [
     'Passwort entfernen'                 => 'Remove password',
     'passwortgeschützt'                  => 'password-protected',
 
+    // Zwei-Faktor-Authentifizierung
+    'Zwei-Faktor-Authentifizierung (2FA)' => 'Two-factor authentication (2FA)',
+    '2FA ist aktiv. Beim Anmelden wird zusätzlich ein Code aus deiner Authenticator-App abgefragt. „Angemeldet bleiben“-Geräte überspringen die Abfrage.'
+        => '2FA is enabled. Signing in additionally asks for a code from your authenticator app. “Stay logged in” devices skip the prompt.',
+    '2FA deaktivieren'                   => 'Disable 2FA',
+    '2FA einrichten'                     => 'Set up 2FA',
+    'Scanne den QR-Code mit deiner Authenticator-App (z. B. Apple Passwörter, Google Authenticator) und bestätige mit einem Code:'
+        => 'Scan the QR code with your authenticator app (e.g. Apple Passwords, Google Authenticator) and confirm with a code:',
+    'Oder Secret manuell eintragen:'     => 'Or enter the secret manually:',
+    'Code aus der App'                   => 'Code from the app',
+    'Aktivieren'                         => 'Enable',
+    'Kein Einrichtungsvorgang aktiv.'    => 'No setup in progress.',
+    'Falscher Code.'                     => 'Wrong code.',
+    'Zwei-Faktor-Authentifizierung aktiviert.'   => 'Two-factor authentication enabled.',
+    'Zwei-Faktor-Authentifizierung deaktiviert.' => 'Two-factor authentication disabled.',
+    'Schütze die Anmeldung zusätzlich mit Einmal-Codes aus einer Authenticator-App (TOTP). Funktioniert komplett offline und ohne Datenbank.'
+        => 'Additionally protect sign-in with one-time codes from an authenticator app (TOTP). Works fully offline, no database needed.',
+    'Sicherheits-Code aus der Authenticator-App' => 'Security code from your authenticator app',
+    'Bestätigen'                         => 'Confirm',
+    'Zurück zur Anmeldung'               => 'Back to login',
+
+    // QR-Logo
+    'Logo in der Mitte'                  => 'Center logo',
+    '– ohne –'                           => '– none –',
+    'Eigenes Bild …'                     => 'Custom image …',
+    'Mit Logo wird Fehlerkorrektur H verwendet. Das Bild bleibt im Browser – es wird nichts hochgeladen.'
+        => 'With a logo, error correction H is used. The image stays in your browser – nothing is uploaded.',
+
     // Diagnose
     'Diagnose'                           => 'Diagnostics',
     'Fehler'                             => 'Error',

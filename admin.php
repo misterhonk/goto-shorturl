@@ -103,9 +103,52 @@ function csv_to_data(string $content): array {
     return ['groups' => $groups, 'links' => $links];
 }
 
-// Passwort-Hash aus der Auth-Datei (vom Setup automatisch geschrieben)
+// Passwort-Hash aus der Auth-Datei (vom Setup automatisch geschrieben).
+// save_hash() ergänzt statt zu überschreiben – das TOTP-Secret bleibt erhalten.
 function stored_hash(): string { return (string) (load_json(AUTH_FILE)['hash'] ?? ''); }
-function save_hash(string $hash): bool { return save_json(AUTH_FILE, ['hash' => $hash]); }
+function save_hash(string $hash): bool {
+    $a = load_json(AUTH_FILE);
+    $a['hash'] = $hash;
+    return save_json(AUTH_FILE, $a);
+}
+
+/* ---- TOTP (RFC 6238; SHA1, 6 Stellen, 30 s) für die 2FA ------------ */
+
+function base32_encode(string $bin): string {
+    $alpha = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    $out = ''; $bits = 0; $val = 0;
+    foreach (str_split($bin) as $c) {
+        $val = ($val << 8) | ord($c); $bits += 8;
+        while ($bits >= 5) { $bits -= 5; $out .= $alpha[($val >> $bits) & 31]; }
+    }
+    if ($bits > 0) $out .= $alpha[($val << (5 - $bits)) & 31];
+    return $out;
+}
+function base32_decode(string $s): string {
+    $alpha = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    $s = strtoupper(preg_replace('/[^A-Za-z2-7]/', '', $s));
+    $out = ''; $bits = 0; $val = 0;
+    for ($i = 0, $n = strlen($s); $i < $n; $i++) {
+        $val = ($val << 5) | (int) strpos($alpha, $s[$i]); $bits += 5;
+        if ($bits >= 8) { $bits -= 8; $out .= chr(($val >> $bits) & 255); }
+    }
+    return $out;
+}
+function totp_code(string $secret, int $time): string {
+    $hash = hash_hmac('sha1', pack('N2', 0, intdiv($time, 30)), base32_decode($secret), true);
+    $off  = ord($hash[19]) & 0x0F;
+    $num  = ((ord($hash[$off]) & 0x7F) << 24) | (ord($hash[$off + 1]) << 16)
+          | (ord($hash[$off + 2]) << 8) | ord($hash[$off + 3]);
+    return str_pad((string) ($num % 1000000), 6, '0', STR_PAD_LEFT);
+}
+function totp_verify(string $secret, string $code): bool {
+    $code = preg_replace('/\D/', '', $code) ?? '';
+    if (strlen($code) !== 6) return false;
+    foreach ([-1, 0, 1] as $w) {   // ±30 s Uhren-Toleranz
+        if (hash_equals(totp_code($secret, time() + $w * 30), $code)) return true;
+    }
+    return false;
+}
 
 /* ---- Flash / Redirect / CSRF -------------------------------------- */
 
@@ -537,16 +580,45 @@ if (!$loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST[
         $loginError = t('Zu viele Fehlversuche. Bitte %d Min. warten.', (int) ceil($wait / 60));
     } elseif (password_verify((string) $_POST['password'], $passwordHash)) {
         session_regenerate_id(true);
+        clear_fails($clientKey);
+        if ((string) (load_json(AUTH_FILE)['totp'] ?? '') !== '') {
+            // 2FA aktiv: erst nach gültigem App-Code anmelden
+            $_SESSION['totp_pending']  = true;
+            $_SESSION['totp_remember'] = !empty($_POST['remember']);
+            redirect($self);
+        }
         $_SESSION['auth'] = true;
         $_SESSION['seen'] = time();
         csrf_token();
-        clear_fails($clientKey);
         if (!empty($_POST['remember'])) remember_set($cookieDir, $https);
         redirect($self);
     } else {
         register_fail($clientKey, $maxAttempts, $lockoutSeconds);
         usleep(300000);
         $loginError = t('Falsches Passwort.');
+    }
+}
+
+// Zweiter Schritt: TOTP-Code nach korrektem Passwort
+if (!$loggedIn && !empty($_SESSION['totp_pending'])
+    && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['totpcode'])) {
+    $wait = lock_remaining($clientKey);
+    $secret = (string) (load_json(AUTH_FILE)['totp'] ?? '');
+    if ($wait > 0) {
+        $loginError = t('Zu viele Fehlversuche. Bitte %d Min. warten.', (int) ceil($wait / 60));
+    } elseif ($secret !== '' && totp_verify($secret, (string) $_POST['totpcode'])) {
+        session_regenerate_id(true);
+        $_SESSION['auth'] = true;
+        $_SESSION['seen'] = time();
+        csrf_token();
+        clear_fails($clientKey);
+        if (!empty($_SESSION['totp_remember'])) remember_set($cookieDir, $https);
+        unset($_SESSION['totp_pending'], $_SESSION['totp_remember']);
+        redirect($self);
+    } else {
+        register_fail($clientKey, $maxAttempts, $lockoutSeconds);
+        usleep(300000);
+        $loginError = t('Falscher Code.');
     }
 }
 
@@ -780,6 +852,33 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
             save_api_tokens($tokens);
             flash(t('API-Token widerrufen.'), 'success');
         }
+    } elseif ($action === 'totp_setup') {
+        $_SESSION['totp_new'] = base32_encode(random_bytes(20));
+    } elseif ($action === 'totp_cancel') {
+        unset($_SESSION['totp_new']);
+    } elseif ($action === 'totp_enable') {
+        $sec = (string) ($_SESSION['totp_new'] ?? '');
+        if ($sec === '') {
+            flash(t('Kein Einrichtungsvorgang aktiv.'));
+        } elseif (!totp_verify($sec, (string) ($_POST['code'] ?? ''))) {
+            flash(t('Falscher Code.'));
+        } else {
+            $a = load_json(AUTH_FILE);
+            $a['totp'] = $sec;
+            save_json(AUTH_FILE, $a)
+                ? flash(t('Zwei-Faktor-Authentifizierung aktiviert.'), 'success')
+                : flash(t('Konnte nicht speichern – Schreibrechte prüfen.'));
+            unset($_SESSION['totp_new']);
+        }
+    } elseif ($action === 'totp_disable') {
+        if (!password_verify((string) ($_POST['current'] ?? ''), $passwordHash)) {
+            flash(t('Aktuelles Passwort ist falsch.'));
+        } else {
+            $a = load_json(AUTH_FILE);
+            unset($a['totp']);
+            save_json(AUTH_FILE, $a);
+            flash(t('Zwei-Faktor-Authentifizierung deaktiviert.'), 'success');
+        }
     }
     redirect($self);
 }
@@ -796,14 +895,21 @@ if (!$loggedIn) {
     if ($loginError) $lt[] = ['msg' => $loginError, 'type' => 'error'];
     if ($loginInfo)  $lt[] = ['msg' => $loginInfo,  'type' => 'info'];
     render_toasts($lt);
-    ?>
+    if (!empty($_SESSION['totp_pending'])): ?>
+    <form class="card" method="post" autocomplete="off">
+        <label><?= t('Sicherheits-Code aus der Authenticator-App') ?></label>
+        <input type="text" name="totpcode" inputmode="numeric" autocomplete="one-time-code" maxlength="7" autofocus required>
+        <button class="btn btn--primary"><?= icon('lock') ?><?= t('Bestätigen') ?></button>
+        <p class="muted logincancel"><a href="<?= e($self) ?>?logout"><?= t('Zurück zur Anmeldung') ?></a></p>
+    </form>
+    <?php else: ?>
     <form class="card" method="post" autocomplete="off">
         <label><?= t('Passwort') ?></label>
         <input type="password" name="password" autofocus required>
         <label class="chk chk--remember"><input type="checkbox" name="remember" value="1"> <?= t('Angemeldet bleiben') ?></label>
         <button class="btn btn--primary"><?= icon('lock') ?><?= t('Anmelden') ?></button>
     </form>
-    <?php
+    <?php endif;
     foot($nonce);
     exit;
 }
@@ -1055,6 +1161,15 @@ head('GOTO', $nonce);
         <label><?= t('Vordergrund') ?><input type="color" id="qrFg" value="#000000"></label>
         <label><?= t('Hintergrund') ?><input type="color" id="qrBg" value="#ffffff"></label>
       </div>
+      <label><?= t('Logo in der Mitte') ?>
+        <select id="qrLogo">
+          <option value="none"><?= t('– ohne –') ?></option>
+          <option value="goto">GOTO</option>
+          <option value="custom"><?= t('Eigenes Bild …') ?></option>
+        </select>
+      </label>
+      <input type="file" id="qrLogoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp" hidden>
+      <p class="muted" id="qrLogoHint" hidden><?= t('Mit Logo wird Fehlerkorrektur H verwendet. Das Bild bleibt im Browser – es wird nichts hochgeladen.') ?></p>
       <p class="muted qrurl" id="qrUrl"></p>
       <div class="qrdl">
         <button type="button" class="btn btn--primary btn--small" id="qrPng"><?= icon('download') ?>PNG</button>
@@ -1122,6 +1237,59 @@ head('GOTO', $nonce);
   </form>
 </details>
 <?php endif; ?>
+
+<?php
+$totpSecret       = (string) (load_json(AUTH_FILE)['totp'] ?? '');
+$totpPendingSetup = (string) ($_SESSION['totp_new'] ?? '');
+?>
+<details class="tools"<?= $totpPendingSetup !== '' ? ' open' : '' ?>>
+  <summary><?= t('Zwei-Faktor-Authentifizierung (2FA)') ?><?php if ($totpSecret !== ''): ?> <span class="count">✓</span><?php endif; ?></summary>
+  <?php if ($totpSecret !== ''): ?>
+    <p class="muted"><?= t('2FA ist aktiv. Beim Anmelden wird zusätzlich ein Code aus deiner Authenticator-App abgefragt. „Angemeldet bleiben“-Geräte überspringen die Abfrage.') ?></p>
+    <form class="bar bar--end" method="post" autocomplete="off">
+      <input type="hidden" name="action" value="totp_disable">
+      <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
+      <label class="field grow">
+        <span class="field-label"><?= t('Aktuelles Passwort') ?></span>
+        <input type="password" name="current" autocomplete="current-password" required>
+      </label>
+      <button class="btn btn--danger"><?= t('2FA deaktivieren') ?></button>
+    </form>
+  <?php elseif ($totpPendingSetup !== ''):
+      $totpUri = 'otpauth://totp/' . rawurlencode('GOTO (' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . ')')
+               . '?secret=' . $totpPendingSetup . '&issuer=GOTO&algorithm=SHA1&digits=6&period=30';
+  ?>
+    <p class="muted"><?= t('Scanne den QR-Code mit deiner Authenticator-App (z. B. Apple Passwörter, Google Authenticator) und bestätige mit einem Code:') ?></p>
+    <div class="totpsetup">
+      <div id="totpqr" data-uri="<?= e($totpUri) ?>"></div>
+      <div class="totpside">
+        <p class="muted"><?= t('Oder Secret manuell eintragen:') ?></p>
+        <textarea class="hashbox" rows="2" readonly><?= e($totpPendingSetup) ?></textarea>
+        <form class="bar bar--end" method="post" autocomplete="off">
+          <input type="hidden" name="action" value="totp_enable">
+          <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
+          <label class="field grow">
+            <span class="field-label"><?= t('Code aus der App') ?></span>
+            <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required>
+          </label>
+          <button class="btn btn--primary"><?= icon('check') ?><?= t('Aktivieren') ?></button>
+        </form>
+        <form class="inline" method="post">
+          <input type="hidden" name="action" value="totp_cancel">
+          <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
+          <button class="btn btn--ghost btn--small"><?= icon('x') ?><?= t('Abbrechen') ?></button>
+        </form>
+      </div>
+    </div>
+  <?php else: ?>
+    <p class="muted"><?= t('Schütze die Anmeldung zusätzlich mit Einmal-Codes aus einer Authenticator-App (TOTP). Funktioniert komplett offline und ohne Datenbank.') ?></p>
+    <form class="inline" method="post">
+      <input type="hidden" name="action" value="totp_setup">
+      <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
+      <button class="btn btn--ghost"><?= icon('lock') ?><?= t('2FA einrichten') ?></button>
+    </form>
+  <?php endif; ?>
+</details>
 
 <?php
 $apiTokens = load_api_tokens();

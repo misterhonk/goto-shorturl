@@ -175,6 +175,22 @@
   }
   function hideToast(t){ t.classList.add('toast--out'); setTimeout(function(){ if(t.parentNode) t.remove(); },350); }
 
+  // 2FA-Einrichtung: otpauth-QR client-seitig rendern (Secret verlässt nie den Server-Response)
+  var totpqr=document.getElementById('totpqr');
+  if(totpqr&&window.QRCodeGen){
+    try{
+      var tq=QRCodeGen.encode(totpqr.getAttribute('data-uri'),'M');
+      var tsc=Math.max(2,Math.floor(170/(tq.size+8)));
+      var tdim=(tq.size+8)*tsc, tcv=document.createElement('canvas');
+      tcv.width=tdim; tcv.height=tdim;
+      var tctx=tcv.getContext('2d');
+      tctx.fillStyle='#fff'; tctx.fillRect(0,0,tdim,tdim); tctx.fillStyle='#000';
+      for(var ty=0;ty<tq.size;ty++)for(var tx=0;tx<tq.size;tx++)
+        if(tq.modules[ty][tx]) tctx.fillRect((tx+4)*tsc,(ty+4)*tsc,tsc,tsc);
+      totpqr.appendChild(tcv);
+    }catch(e){ totpqr.textContent=e.message; }
+  }
+
   // Klick-Verlauf-Dialog (Balken-Chart der letzten N Tage, Daten aus data-days)
   var cdlg=document.getElementById('clkdlg');
   if(cdlg){
@@ -287,17 +303,68 @@
         while(x+w<n&&qr.modules[y][x+w]) w++;
         r+='<rect x="'+((x+margin)*scale)+'" y="'+((y+margin)*scale)+'" width="'+(w*scale)+'" height="'+scale+'"/>'; x+=w;
       } else x++; } }
-      return '<svg xmlns="http://www.w3.org/2000/svg" width="'+dim+'" height="'+dim+'" viewBox="0 0 '+dim+' '+dim+'" shape-rendering="crispEdges">'
-        +'<rect width="'+dim+'" height="'+dim+'" fill="'+elBg.value+'"/><g fill="'+elFg.value+'">'+r+'</g></svg>';
+      return '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="'+dim+'" height="'+dim+'" viewBox="0 0 '+dim+' '+dim+'" shape-rendering="crispEdges">'
+        +'<rect width="'+dim+'" height="'+dim+'" fill="'+elBg.value+'"/><g fill="'+elFg.value+'">'+r+'</g>'+svgLogo(dim)+'</svg>';
     }
     function dl(name,blob){ var u=URL.createObjectURL(blob),a=document.createElement('a');
       a.href=u; a.download=name; document.body.appendChild(a); a.click();
       setTimeout(function(){ URL.revokeObjectURL(u); a.remove(); },150); }
+
+    // Logo in der QR-Mitte: bleibt komplett im Browser (FileReader/Canvas,
+    // kein Upload). Deckt ~22% der Kante ab -> Fehlerkorrektur H noetig.
+    var elLogo=document.getElementById('qrLogo'), elLogoFile=document.getElementById('qrLogoFile'),
+        elLogoHint=document.getElementById('qrLogoHint'), logoImg=null;
+    function overlay(c,bg){
+      if(!elLogo||elLogo.value==='none'||!logoImg) return c;
+      var x2=c.getContext('2d'), dim=c.width;
+      var pad=Math.round(dim*0.22), r=Math.round(pad*0.18), o=(dim-pad)/2;
+      x2.beginPath();
+      x2.moveTo(o+r,o);
+      x2.arcTo(o+pad,o,o+pad,o+pad,r); x2.arcTo(o+pad,o+pad,o,o+pad,r);
+      x2.arcTo(o,o+pad,o,o,r); x2.arcTo(o,o,o+pad,o,r);
+      x2.closePath(); x2.fillStyle=bg||'#fff'; x2.fill();
+      var ls=Math.round(pad*0.82), lo=(dim-ls)/2;
+      x2.drawImage(logoImg,lo,lo,ls,ls);
+      return c;
+    }
+    function svgLogo(dim){
+      if(!elLogo||elLogo.value==='none'||!logoImg) return '';
+      var pad=Math.round(dim*0.22), r=Math.round(pad*0.18), o=(dim-pad)/2;
+      var ls=Math.round(pad*0.82), lo=(dim-ls)/2;
+      var c=document.createElement('canvas'); c.width=256; c.height=256;
+      c.getContext('2d').drawImage(logoImg,0,0,256,256);
+      return '<rect x="'+o+'" y="'+o+'" width="'+pad+'" height="'+pad+'" rx="'+r+'" fill="'+elBg.value+'"/>'
+           + '<image x="'+lo+'" y="'+lo+'" width="'+ls+'" height="'+ls+'" href="'+c.toDataURL('image/png')+'"/>';
+    }
+    function logoOn(){
+      if(elEcl.value!=='H') elEcl.value='H';
+      if(elLogoHint) elLogoHint.hidden=false;
+    }
+    if(elLogo){
+      elLogo.addEventListener('change',function(){
+        if(elLogo.value==='goto'){
+          var im=new Image();
+          im.onload=function(){ logoImg=im; logoOn(); render(); };
+          im.src='assets/favicon.svg';
+        } else if(elLogo.value==='custom'){
+          elLogoFile.click();
+        } else { logoImg=null; if(elLogoHint) elLogoHint.hidden=true; render(); }
+      });
+      elLogoFile.addEventListener('change',function(){
+        var f=elLogoFile.files&&elLogoFile.files[0];
+        if(!f) return;
+        var rd=new FileReader();
+        rd.onload=function(){ var im=new Image();
+          im.onload=function(){ logoImg=im; logoOn(); render(); };
+          im.src=String(rd.result); };
+        rd.readAsDataURL(f);
+      });
+    }
     function render(){
       if(!cur.url) return;
       try{ var qr=QRCodeGen.encode(cur.url, elEcl.value), m=Math.max(0,num(elMargin,4));
         var ps=Math.max(1,Math.floor(200/(qr.size+m*2)));
-        prev.innerHTML=''; prev.appendChild(draw(qr,ps,m));
+        prev.innerHTML=''; prev.appendChild(overlay(draw(qr,ps,m), elBg.value));
       }catch(err){ prev.textContent=err.message; }
     }
     document.querySelectorAll('[data-qr]').forEach(function(b){
@@ -312,7 +379,7 @@
     dlg.addEventListener('click',function(e){ if(e.target===dlg) dlg.close(); });
     document.getElementById('qrPng').addEventListener('click',function(){
       try{ var qr=QRCodeGen.encode(cur.url,elEcl.value);
-        draw(qr,Math.max(2,num(elScale,8)),Math.max(0,num(elMargin,4)))
+        overlay(draw(qr,Math.max(2,num(elScale,8)),Math.max(0,num(elMargin,4))), elBg.value)
           .toBlob(function(bl){ dl('qr-'+cur.slug+'.png',bl); },'image/png');
       }catch(err){ alert(err.message); }
     });
@@ -361,7 +428,7 @@
       items.forEach(function(b){
         var slug=b.getAttribute('data-slug')||'qr', url=b.getAttribute('data-qr'), qr;
         try{ qr=QRCodeGen.encode(url, ecl); }catch(e){ return; }
-        jobs.push(canvasBytes(plainCanvas(qr,8,4)).then(function(bytes){
+        jobs.push(canvasBytes(overlay(plainCanvas(qr,8,4),'#fff')).then(function(bytes){
           zipBtn.textContent='Erzeuge … '+(++done)+'/'+items.length;
           return {name:'qr-'+slug+'.png', data:bytes};
         }));

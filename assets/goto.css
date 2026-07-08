@@ -260,6 +260,15 @@ input.invalid:focus{box-shadow:0 0 0 4px rgba(255,59,48,.18)}
 .slugmono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:.83rem;color:var(--blue)}
 .nowrap{white-space:nowrap}
 
+/* 2FA-Einrichtung */
+.totpsetup{display:flex;gap:1.2rem;flex-wrap:wrap;align-items:flex-start;margin-top:.6rem}
+#totpqr{flex:0 0 180px;width:180px;height:180px;display:flex;align-items:center;justify-content:center;
+     background:#fff;border:1px solid var(--line);border-radius:var(--radius-sm);overflow:hidden}
+#totpqr canvas{image-rendering:pixelated;max-width:100%;height:auto}
+.totpside{flex:1;min-width:220px}
+.totpside .inline{display:inline-block;margin-top:.6rem}
+.logincancel{margin:.9rem 0 0;text-align:center}
+
 /* Diagnose-Ampel */
 .diagstat{display:inline-flex;align-items:center;font-size:.72rem;font-weight:600;
      padding:.14rem .55rem;border-radius:999px;border:1px solid transparent}

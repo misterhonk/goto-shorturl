@@ -6,6 +6,18 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 ## [Unreleased]
 
 ### Hinzugefügt
+- **QR-Codes mit Logo:** im QR-Dialog optional das GOTO-Logo oder ein eigenes
+  Bild in der Mitte platzieren (gilt für Vorschau, PNG-/SVG-Download und
+  ZIP-Batch). Das Bild bleibt komplett im Browser – kein Upload. Die
+  Fehlerkorrektur wird automatisch auf H angehoben; Scanbarkeit maschinell
+  verifiziert.
+- **Zwei-Faktor-Authentifizierung (TOTP)** fürs Admin: Einrichtung per
+  QR-Code (client-seitig gerendert) oder manuellem Secret, Codes aus jeder
+  Authenticator-App (RFC 6238; SHA1/6 Stellen/30 s, ±30 s Toleranz). Secret
+  liegt in `.ht_auth.json` (file-only), Login fragt nach korrektem Passwort
+  zusätzlich den Code ab (mit Brute-Force-Bremse); „Angemeldet
+  bleiben"-Geräte überspringen die Abfrage. Deaktivieren per Passwort;
+  Notfall-Ausstieg: `totp`-Eintrag aus `.ht_auth.json` entfernen.
 - **Query-Parameter-Durchreichung:** `goto/kürzel?utm_source=…` hängt die
   Parameter an die Ziel-URL an (Fragment im Ziel bleibt erhalten; funktioniert
   auch auf Passwort- und Vorschau-Seiten sowie in Rewrite-Variante B).

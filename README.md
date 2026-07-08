@@ -28,7 +28,8 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 - **Kurz-URLs** mit eigenem Kürzel oder automatisch generiertem Zufalls-Slug
 - **Gruppen / Projekte** zum Ordnen, inkl. Verschieben per Dropdown oder **Drag & Drop**
 - **QR-Codes** pro Link — lokal erzeugt (kein externer Dienst), als **PNG oder SVG**,
-  mit einstellbarer Fehlerkorrektur (L/M/Q/H), Größe, Rand und Farben
+  mit einstellbarer Fehlerkorrektur (L/M/Q/H), Größe, Rand, Farben und optionalem
+  **Logo in der Mitte** (GOTO-Logo oder eigenes Bild; bleibt im Browser)
 - **Klick-Zähler** — rein anonym (keine IPs, Zeitstempel oder User-Agents),
   mit **Statistik-Kacheln** (gesamt / heute / 7 Tage / Top-Link) und
   **Klick-Verlauf** als Diagramm (14 / 30 / 90 Tage)
@@ -284,6 +285,10 @@ oder reserviert), `429` (Rate-Limit, **120 Anfragen/Min.** je Token),
 ## Sicherheit
 
 - **Passwörter** nur als **bcrypt-Hash** (`password_hash`/`password_verify`)
+- **Zwei-Faktor-Authentifizierung (TOTP)** optional fürs Admin: Einmal-Codes aus
+  einer Authenticator-App, komplett offline (Secret in `.ht_auth.json`).
+  „Angemeldet bleiben"-Geräte überspringen die Abfrage. *Notfall (App verloren):*
+  in `.ht_auth.json` den Eintrag `"totp"` entfernen (z. B. per FTP)
 - **CSRF-Schutz** auf allen schreibenden Aktionen (`hash_equals`)
 - **Brute-Force-Bremse**: Sperre nach `max_attempts`, IP nur gehasht gespeichert
 - **Session-Härtung**: `HttpOnly`, `SameSite=Strict`, `Secure` (bei HTTPS),
