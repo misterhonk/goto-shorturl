@@ -250,6 +250,8 @@ if (isset($_GET['lang']) && in_array($_GET['lang'], ['de', 'en'], true)) {
     exit;
 }
 
+@ini_set('session.use_strict_mode', '1');   // keine von außen vorgegebenen Session-IDs übernehmen
+@ini_set('session.use_only_cookies', '1');
 session_set_cookie_params([
     'lifetime' => 0, 'path' => $cookieDir, 'httponly' => true,
     'secure' => $https, 'samesite' => 'Strict',
@@ -501,6 +503,7 @@ if ($passwordHash === '') {
         Datenverzeichnis fehlen). Trag diese Zeile in <code>config.php</code> ein:</p>
         <textarea class="hashbox" rows="3" readonly>'password_hash' => '<?= e($manualHash) ?>',</textarea>
     <?php } else { ?>
+        <div class="flash info"><?= t('Wichtig: Lege das Passwort jetzt sofort fest. Solange keines gesetzt ist, könnte jede Person mit dieser Adresse es festlegen.') ?></div>
         <p class="muted"><?= t('Lege ein Passwort fest – es wird sicher (bcrypt) gespeichert. Danach kannst du dich direkt anmelden.') ?></p>
         <form class="card" method="post" autocomplete="off">
             <label><?= t('Passwort festlegen (mind. 8 Zeichen)') ?></label>

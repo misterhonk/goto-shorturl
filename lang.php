@@ -17,6 +17,8 @@ return [
     'Sprache'                            => 'Language',
 
     // Login / Setup
+    'Wichtig: Lege das Passwort jetzt sofort fest. Solange keines gesetzt ist, könnte jede Person mit dieser Adresse es festlegen.'
+        => 'Important: set the password right now. As long as none is set, anyone with this address could set it.',
     'Sitzung abgelaufen – bitte erneut anmelden.' => 'Session expired – please log in again.',
     'Falsches Passwort.'                          => 'Wrong password.',
     'Lege ein Passwort fest – es wird sicher (bcrypt) gespeichert. Danach kannst du dich direkt anmelden.'

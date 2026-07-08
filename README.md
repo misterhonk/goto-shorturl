@@ -343,7 +343,14 @@ Anfragen/Min.** je Token), `405` (Methode).
 - **API-Token**: serverseitig nur als SHA-256-Hash gespeichert, einmalig im
   Klartext angezeigt, jederzeit widerrufbar, eigenes Rate-Limit je Token
 - **Content-Security-Policy** (Nonce-basiert, kein `unsafe-inline`) plus
-  `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, **HSTS**
+  `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, **HSTS** –
+  auf dem Admin **und** allen öffentlichen Seiten (Passwort-/Vorschau-/
+  Fehlerseite), u. a. als Clickjacking-Schutz der Passwort-Seite
+- **Gehärtete Sessions:** `session.use_strict_mode` (keine untergeschobenen
+  Session-IDs) und `use_only_cookies` explizit aktiviert
+- **Ersteinrichtung:** setze das Passwort **sofort** nach dem Upload – bis dahin
+  könnte jede Person mit der Adresse es festlegen. Für heikle Umgebungen den
+  Hash vorab per `GOTO_PASSWORD_HASH` bzw. `config.php` setzen
 - **URL-Validierung**: nur `http`/`https` werden gespeichert und weitergeleitet
   (auch in `index.php` erneut geprüft)
 - **Dateischutz**: `.htaccess` sperrt `*.json`, `config.php` und Dotfiles;

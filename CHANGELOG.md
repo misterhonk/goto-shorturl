@@ -5,6 +5,18 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+### Sicherheit
+- **Öffentliche Seiten gehärtet:** Passwort-, Vorschau- und Fehlerseiten senden
+  jetzt `X-Frame-Options: DENY`, `X-Content-Type-Options`, `Referrer-Policy`,
+  `X-Robots-Tag`, HSTS (bei HTTPS) und eine strenge nonce-basierte CSP mit
+  `frame-ancestors 'none'`. Behebt insbesondere die **Einbettbarkeit der
+  Passwort-Seite in fremde iframes** (Clickjacking).
+- **Sessions:** `session.use_strict_mode` und `use_only_cookies` explizit
+  aktiviert (keine von außen vorgegebenen Session-IDs).
+- **Ersteinrichtung:** deutlicher Hinweis auf dem Setup-Bildschirm, das
+  Passwort sofort zu setzen; README um Absicherung per `GOTO_PASSWORD_HASH`
+  ergänzt.
+
 ## [0.7.0] – 2026-07-08
 
 ### Hinzugefügt

@@ -139,12 +139,26 @@ $ee = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 
 $dirUrl  = rtrim(dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/')), '/') . '/';
 $baseUrl = (is_https() ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $dirUrl;
+// Eine Nonce pro Antwort – für die CSP-Header und ein evtl. Inline-Script.
+$nonce = base64_encode(random_bytes(16));
 
 // Kleine, in sich geschlossene Seite: Favicon, Hell/Dunkel-Modus, zentrierte
 // Karte im GOTO-Look. $extraHead/$bodyHtml müssen bereits escaped sein.
-function goto_page(string $lang, string $dirUrl, string $title, string $extraHead, string $bodyHtml): void {
+function goto_page(string $lang, string $dirUrl, string $title, string $extraHead, string $bodyHtml, string $nonce): void {
     header('X-Goto-App: 1');   // Marker für die Diagnose (Rewrite-Check im Admin)
     header('Content-Type: text/html; charset=utf-8');
+    // Härtung der öffentlichen Seiten (u. a. Clickjacking-Schutz für die
+    // Passwort-Seite). Inline-<style>/<script> nur mit Nonce erlaubt.
+    header('X-Frame-Options: DENY');
+    header('X-Content-Type-Options: nosniff');
+    header('Referrer-Policy: no-referrer');
+    header('X-Robots-Tag: noindex, nofollow');
+    if (is_https()) header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+    header(
+        "Content-Security-Policy: default-src 'none'; img-src 'self' data:; "
+        . "style-src 'self' 'nonce-$nonce'; script-src 'nonce-$nonce'; "
+        . "form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+    );
     $h  = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
     $d  = $h($dirUrl);
     $ti = $h($title);
@@ -162,7 +176,7 @@ function goto_page(string $lang, string $dirUrl, string $title, string $extraHea
 <meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1014" media="(prefers-color-scheme: dark)">
 <title>{$ti}</title>
-{$extraHead}<style>
+{$extraHead}<style nonce="{$nonce}">
 :root{--bg:#f4f5f7;--card:#fff;--fg:#1f2328;--muted:#6b7280;--line:#ebedf0}
 @media (prefers-color-scheme:dark){:root{--bg:#0e1014;--card:#171a21;--fg:#e7e9ec;--muted:#99a1ad;--line:#242935}}
 *{box-sizing:border-box}
@@ -184,6 +198,7 @@ p{color:var(--muted);margin:.25rem 0;overflow-wrap:anywhere}
      font:inherit;background:var(--card);color:var(--fg);text-align:center}
 .pwform input:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 4px rgba(37,99,235,.2)}
 .err{color:#e03131;font-size:.88rem;margin-top:.6rem}
+.mt{margin-top:.9rem}
 </style>
 </head>
 <body>
@@ -259,7 +274,7 @@ if ($protected) {
           . '<button class="btn">' . $ee($t('Weiter')) . '</button>'
           . '</form>'
           . ($err !== '' ? '<p class="err">' . $ee($err) . '</p>' : '');
-    goto_page($lang, $dirUrl, $pgTitle, $extra, $body);
+    goto_page($lang, $dirUrl, $pgTitle, $extra, $body, $nonce);
     exit;
 }
 
@@ -276,12 +291,12 @@ if ($target !== null && !$isPreviewBot) {
     $body = '<h1>' . $ee($pgTitle) . '</h1>'
           . '<p>' . $ee(sprintf($t('Weiterleitung zu %s'), $host)) . '</p>'
           . '<a class="btn" href="' . $ee($dest) . '" rel="noreferrer">' . $ee($t('Jetzt weiter')) . '</a>'
-          . '<p class="muted" style="margin-top:.9rem">'
+          . '<p class="muted mt">'
           . sprintf($ee($t('Automatische Weiterleitung in %s Sekunden …')), '<span id="cd">3</span>')
           . '</p>'
-          . '<script>(function(){var n=3,e=document.getElementById("cd");'
+          . '<script nonce="' . $ee($nonce) . '">(function(){var n=3,e=document.getElementById("cd");'
           . 'setInterval(function(){n=Math.max(0,n-1);if(e)e.textContent=n;},1000);})();</script>';
-    goto_page($lang, $dirUrl, $pgTitle, $extra, $body);
+    goto_page($lang, $dirUrl, $pgTitle, $extra, $body, $nonce);
     exit;
 }
 
@@ -305,7 +320,7 @@ if ($target !== null) {
     $body = '<h1>' . $ee($ogTitle) . '</h1>'
           . '<p>' . $ee($ogDesc) . ' …</p>'
           . '<a class="btn" href="' . $ee(merge_query($target)) . '">' . $ee($t('Weiter zur Zielseite')) . '</a>';
-    goto_page($lang, $dirUrl, $ogTitle, $extra, $body);
+    goto_page($lang, $dirUrl, $ogTitle, $extra, $body, $nonce);
     exit;
 }
 
@@ -315,4 +330,4 @@ $msg  = $expired
     : $t('Diese Kurz-URL existiert nicht (mehr).');
 $body = '<h1>' . $ee($expired ? $t('Link abgelaufen') : $t('Kurz-URL nicht gefunden')) . '</h1>'
       . '<p>' . $ee($msg) . '</p>';
-goto_page($lang, $dirUrl, $expired ? $t('Abgelaufen') : $t('Nicht gefunden'), '', $body);
+goto_page($lang, $dirUrl, $expired ? $t('Abgelaufen') : $t('Nicht gefunden'), '', $body, $nonce);
