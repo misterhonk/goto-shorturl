@@ -5,6 +5,8 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+## [0.5.0] – 2026-07-08
+
 ### Hinzugefügt
 - **QR-Codes mit Logo:** im QR-Dialog optional das GOTO-Logo oder ein eigenes
   Bild in der Mitte platzieren (gilt für Vorschau, PNG-/SVG-Download und
@@ -124,7 +126,8 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
   Drag & Drop, Live-Suche sowie Import/Export.
 - Datenbanklos – alle Daten in JSON-Dateien.
 
-[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.1.0...v0.2.0
