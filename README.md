@@ -14,6 +14,7 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 - [Aufbau & Dateien](#aufbau--dateien)
 - [Installation](#installation)
 - [Konfiguration](#konfiguration)
+- [Serverkonfiguration (Apache / nginx / Caddy)](#serverkonfiguration-apache--nginx--caddy)
 - [Bedienung](#bedienung)
 - [API](#api)
 - [Datenmodell](#datenmodell)
@@ -154,6 +155,32 @@ dann sind sie unabhängig von Apache/`.htaccess` nicht abrufbar:
 
 Den Ordner anlegen, beschreibbar machen und vorhandene `urls.json` dorthin
 verschieben. `index.php` und `admin.php` nutzen automatisch denselben Pfad.
+
+---
+
+## Serverkonfiguration (Apache / nginx / Caddy)
+
+GOTO braucht vom Webserver drei Dinge: unbekannte Pfade (= Kürzel) an
+`index.php` leiten, `/admin` auf `admin.php` abbilden und die Datendateien
+sperren. Alle drei Varianten sind **getestet** (die Docker-Testumgebung fährt
+sie gegen dieselben Beispieldateien hoch, siehe `docker-compose.yml`):
+
+| Server | Konfiguration | Hinweise |
+|---|---|---|
+| **Apache** | `.htaccess` (liegt bei) | Standard; läuft auf Shared-Hosting inkl. IONOS. `FallbackResource`-Pfad an den Ordner anpassen. |
+| **nginx** | [`docs/nginx.example.conf`](docs/nginx.example.conf) | `$is_args$args` im `try_files`-Fallback nicht weglassen (sonst gehen Query-Parameter verloren); bei HTTPS `fastcgi_param HTTPS on;` aktivieren. |
+| **Caddy** | [`docs/Caddyfile.example`](docs/Caddyfile.example) | Kürzeste Variante, automatisches HTTPS inklusive. FPM-Adresse per `GOTO_FPM`-Umgebungsvariable überschreibbar. |
+
+Unter nginx und Caddy kommen `Authorization`-Header (API) und
+Query-Parameter ohne Zusatzkonfiguration an. **Abnahme-Test nach dem
+Einrichten:** Admin → **Diagnose** öffnen – die Ampel prüft Rewriting und
+Dateischutz direkt im Browser.
+
+Zum lokalen Testen der Beispiel-Configs:
+```bash
+docker compose --profile servers up -d
+# nginx: http://localhost:8089/goto/admin   Caddy: http://localhost:8090/goto/admin
+```
 
 ---
 

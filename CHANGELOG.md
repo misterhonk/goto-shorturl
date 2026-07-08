@@ -5,6 +5,20 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+### Hinzugefügt
+- **Caddy-Unterstützung:** neues, getestetes [`docs/Caddyfile.example`](docs/Caddyfile.example)
+  (automatisches HTTPS, FPM-Adresse per `GOTO_FPM`-ENV überschreibbar).
+- **Server-Testumgebung:** `docker compose --profile servers up -d` startet
+  nginx (Port 8089) und Caddy (Port 8090) mit PHP-FPM gegen die echten
+  Beispiel-Configs; README-Abschnitt „Serverkonfiguration".
+
+### Behoben
+- **nginx-Beispiel-Config lieferte unter `/admin` den PHP-Quelltext aus**
+  (`try_files` im `location =`-Block serviert statisch statt an PHP zu
+  übergeben) – jetzt `rewrite … last`. Außerdem gingen Query-Parameter im
+  `try_files`-Fallback verloren (`$is_args$args` ergänzt) und der
+  HTTPS-Hinweis (`fastcgi_param HTTPS on`) fehlte.
+
 ## [0.5.0] – 2026-07-08
 
 ### Hinzugefügt

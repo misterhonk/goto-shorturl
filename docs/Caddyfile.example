@@ -1,0 +1,29 @@
+# Beispiel-Caddyfile für GOTO (Caddy 2)
+#
+# Caddy bringt automatisches HTTPS mit – Zertifikate inklusive. php_fastcgi
+# enthält den Front-Controller-Fallback bereits, daher bleibt die Datei kurz.
+# Authorization-Header (API) und Query-Parameter (?utm_source=…) werden
+# ohne Zusatzkonfiguration durchgereicht. Nach dem Einrichten im Admin die
+# **Diagnose** öffnen – sie prüft Rewriting und Dateischutz direkt im Browser.
+#
+# Annahme: GOTO liegt unter /var/www/goto und ist als /goto/ erreichbar.
+# PHP-FPM-Adresse ggf. anpassen; {$GOTO_FPM:…} lässt sich per Umgebungs-
+# variable GOTO_FPM überschreiben (z. B. auf php-fpm:9000 im Container).
+
+deine-domain.de {
+    root * /var/www
+
+    # Sensible Dateien niemals ausliefern (Datendateien, Dotfiles auch in
+    # Unterordnern wie backups/, config.php)
+    @gesperrt path_regexp ^/goto/((.*/)?\.[^/]*|.*\.(json|md|bak|tmp)|config\.php)$
+    respond @gesperrt 404
+
+    # Schöne Admin-URL: /goto/admin -> admin.php
+    rewrite /goto/admin /goto/admin.php
+
+    # PHP + Front-Controller: unbekannte Pfade (= Kürzel) an index.php
+    php_fastcgi {$GOTO_FPM:unix//run/php/php8.2-fpm.sock} {
+        try_files {path} /goto/index.php
+    }
+    file_server
+}
