@@ -36,6 +36,7 @@ $expired   = false;
 $linkTitle = '';
 $linkPass  = '';
 $linkPrev  = false;
+$expUrl    = '';
 
 if ($slug !== '' && isset($links[$slug])) {
     $entry = $links[$slug];
@@ -45,11 +46,22 @@ if ($slug !== '' && isset($links[$slug])) {
         $linkTitle = (string) ($entry['title'] ?? '');
         $linkPass  = (string) ($entry['pass'] ?? '');
         $linkPrev  = !empty($entry['preview']);
+        $expUrl    = (string) ($entry['expires_url'] ?? '');
         if ($expires !== '' && $expires < date('Y-m-d')) $expired = true;
         elseif ($url !== '')                              $target = $url;
     } else {
         $target = (string) $entry;
     }
+}
+
+// Abgelaufen, aber mit Ersatz-URL: dorthin weiterleiten (kein 410).
+// Nur echte http(s)-Ziele; Query-Parameter des Aufrufs werden mitgereicht.
+// (merge_query() ist eine Top-Level-Funktion und daher hier bereits verfügbar.)
+if ($expired && $expUrl !== ''
+    && in_array(strtolower((string) parse_url($expUrl, PHP_URL_SCHEME)), ['http', 'https'], true)) {
+    header('Referrer-Policy: no-referrer');
+    header('Location: ' . merge_query($expUrl), true, 302);
+    exit;
 }
 
 // Defense-in-Depth: nur echte http(s)-Ziele weiterleiten

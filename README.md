@@ -36,7 +36,12 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
   **CSV-Export** der Tageswerte,
   mit **Statistik-Kacheln** (gesamt / heute / 7 Tage / Top-Link) und
   **Klick-Verlauf** als Diagramm (14 / 30 / 90 Tage)
-- **Titel / Notiz** je Link, **Ablaufdatum** (abgelaufene Links liefern `410 Gone`)
+- **Titel / Notiz** je Link, **Ablaufdatum** (abgelaufene Links liefern `410 Gone`,
+  wahlweise **Weiterleitung auf eine Ersatz-URL** statt der 410-Seite)
+- **Titel-Autofill**: Knopf holt den `<title>` der Zielseite (opt-in, SSRF-geschützt)
+- **Duplikat-Hinweis** beim Anlegen, wenn die Ziel-URL schon existiert
+- **Geräte-Verwaltung**: aktive „Angemeldet bleiben"-Geräte einsehen und abmelden
+- **Update-Hinweis** in der Diagnose (opt-in, prüft die neueste GitHub-Version)
 - **Passwortgeschützte Links**: optional je Link ein Passwort – Besucher sehen
   erst eine Passwort-Seite, dann die Weiterleitung (bcrypt, mit Brute-Force-Sperre)
 - **Vorschau-Zwischenseite** (opt-in je Link): zeigt Titel und Ziel-Domain,
@@ -122,6 +127,9 @@ return [
     'idle_timeout'    => 1800,    // Auto-Logout nach Inaktivität (Sekunden)
     'max_attempts'    => 5,       // Login-Fehlversuche bis zur Sperre
     'lockout_seconds' => 900,     // Sperrdauer nach zu vielen Versuchen
+    'favicons'        => true,    // Ziel-Favicons anzeigen (externer Abruf)
+    'update_check'    => false,   // Diagnose fragt api.github.com nach Updates
+    'title_fetch'     => true,    // „Titel holen"-Knopf (ausgehender Request)
     'data_dir'        => __DIR__, // Speicherort der Datendateien
 ];
 ```
@@ -263,6 +271,7 @@ Felder für `POST`/`PATCH`:
 | `expires` | – | Ablaufdatum `JJJJ-MM-TT` (leer = kein Ablauf) |
 | `password` | – | Link-Passwort (nur Hash gespeichert; bei `PATCH`: `""` entfernt es) |
 | `preview` | – | `1`/`true` = Vorschau-Zwischenseite vor der Weiterleitung |
+| `expires_url` | – | Weiterleitungsziel nach Ablauf (statt `410`); `""` entfernt es |
 
 ```bash
 # Anlegen
@@ -286,7 +295,7 @@ curl -X DELETE -H "Authorization: Bearer goto_…" \
 
 Antworten sind JSON: Erfolg `{ "ok": true, … }` (Anlegen: `201`, sonst `200`);
 Link-Objekte enthalten `slug`, `short_url`, `url`, `group`, `title`, `expires`,
-`created`, `protected`, `preview`, `clicks` – Passwort-Hashes werden **nie**
+`created`, `protected`, `preview`, `expires_url`, `clicks` – Passwort-Hashes werden **nie**
 ausgegeben. Fehler liefern passenden Status + `{ "ok": false, "error": "…" }`:
 `401` (Token), `404` (Kürzel unbekannt), `422` (URL/Kürzel ungültig),
 `409` (Kürzel vergeben oder reserviert), `429` (Rate-Limit, **120
@@ -357,6 +366,9 @@ Anfragen/Min.** je Token), `405` (Methode).
   (auch in `index.php` erneut geprüft)
 - **Dateischutz**: `.htaccess` sperrt `*.json`, `config.php` und Dotfiles;
   `display_errors` ist deaktiviert
+- **Titel-Autofill SSRF-sicher**: der serverseitige Abruf erlaubt nur öffentliche
+  Hosts (private/reservierte IP-Bereiche werden abgewiesen), folgt keinen
+  Redirects und hat Zeit-/Größenlimit
 
 Mehr zum optionalen Auslagern der Daten unter
 [Datenverzeichnis verschieben](#datenverzeichnis-verschieben-empfohlen).

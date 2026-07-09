@@ -66,7 +66,21 @@
                 diagSet(row, r.status===404&&viaApp, 'HTTP '+r.status+(viaApp?' (GOTO)':'')); }
         }).catch(function(){ diagSet(row, mode==='blocked', ''); });
       });
+      // Update-Check (opt-in): neueste Release-Version bei GitHub vergleichen
+      var upRow=diag.querySelector('tr[data-diag-update]');
+      if(upRow && diag.getAttribute('data-update-check')==='1'){
+        var cur=diag.getAttribute('data-version')||'';
+        fetch('https://api.github.com/repos/misterhonk/goto-shorturl/releases/latest',{cache:'no-store'})
+          .then(function(r){ return r.json(); })
+          .then(function(d){ var tag=(d&&d.tag_name||'').replace(/^v/,'');
+            if(!tag){ diagSet(upRow,true,''); return; }
+            if(cmpVer(tag,cur)>0){ diagSet(upRow,false,(diag.getAttribute('data-l-update')||'%s').replace('%s','v'+tag)); }
+            else{ diagSet(upRow,true,diag.getAttribute('data-l-uptodate')||''); }
+          }).catch(function(){ diagSet(upRow,true,''); });
+      }
     });
+    function cmpVer(a,b){ var x=a.split('.').map(Number),y=b.split('.').map(Number);
+      for(var i=0;i<3;i++){ var d=(x[i]||0)-(y[i]||0); if(d) return d>0?1:-1; } return 0; }
   }
 
   // Ablaufdatum zurücksetzen
@@ -91,13 +105,39 @@
     if(!boxes.some(function(b){return b.checked;})){ e.preventDefault(); alert('Bitte zuerst Links markieren.'); }
   });
 
-  // Inline-URL-Validierung
+  // Inline-URL-Validierung (+ Duplikat-Hinweis am Anlege-Feld)
   function isUrl(v){ try{ var u=new URL(v); return u.protocol==='http:'||u.protocol==='https:'; }catch(_){ return false; } }
+  function normUrl(u){ return u.toLowerCase().trim().replace(/^https?:\/\//,'').replace(/^www\./,'').replace(/\/+$/,''); }
+  var dupehint=document.getElementById('dupehint');
   document.querySelectorAll('input[name=url]').forEach(function(inp){
+    var dupes=null; try{ dupes=JSON.parse(inp.getAttribute('data-dupe')||'null'); }catch(_){}
+    var tpl=inp.getAttribute('data-dupe-tpl')||'';
     function chk(){ var v=inp.value.trim();
       inp.classList.toggle('valid', v!=='' && isUrl(v));
-      inp.classList.toggle('invalid', v!=='' && !isUrl(v)); }
+      inp.classList.toggle('invalid', v!=='' && !isUrl(v));
+      if(dupehint && dupes){ var hit=(v!==''&&isUrl(v))?dupes[normUrl(v)]:null;
+        if(hit){ dupehint.textContent=tpl.replace('%s',hit); dupehint.hidden=false; }
+        else dupehint.hidden=true; } }
     inp.addEventListener('input',chk); chk();
+  });
+
+  // „Titel von der Zielseite holen" (Server holt den <title>, opt-in)
+  document.querySelectorAll('[data-fetchtitle]').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var form=btn.closest('form')||document.getElementById('addform');
+      var urlEl=form&&form.querySelector('input[name=url]');
+      var titleEl=btn.closest('.fetchfield').querySelector('input[name=title]');
+      var url=urlEl?urlEl.value.trim():'';
+      if(!url||!isUrl(url)){ if(urlEl) urlEl.focus(); return; }
+      var old=btn.innerHTML; btn.disabled=true; btn.textContent='…';
+      fetch('?fetchtitle='+encodeURIComponent(url),{cache:'no-store'})
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if(d&&d.ok&&d.title){ titleEl.value=d.title;
+            titleEl.dispatchEvent(new Event('input')); }
+          else { titleEl.placeholder='—'; } })
+        .catch(function(){})
+        .then(function(){ btn.disabled=false; btn.innerHTML=old; });
+    });
   });
 
   // Suche + Filter + Sortierung
@@ -411,25 +451,20 @@
       var out=new Uint8Array(total),p=0;all.forEach(function(a){out.set(a,p);p+=a.length;});
       return out;
     }
-    function plainCanvas(qr,scale,margin){
-      var n=qr.size, dim=(n+margin*2)*scale;
-      var c=document.createElement('canvas'); c.width=dim; c.height=dim;
-      var x2=c.getContext('2d'); x2.fillStyle='#fff'; x2.fillRect(0,0,dim,dim); x2.fillStyle='#000';
-      for(var y=0;y<n;y++) for(var x=0;x<n;x++) if(qr.modules[y][x]) x2.fillRect((x+margin)*scale,(y+margin)*scale,scale,scale);
-      return c;
-    }
     function canvasBytes(c){ return new Promise(function(res){ c.toBlob(function(bl){ bl.arrayBuffer().then(function(buf){ res(new Uint8Array(buf)); }); },'image/png'); }); }
     var zipBtn=document.getElementById('qrAllZip');
     if(zipBtn) zipBtn.addEventListener('click',function(){
       var items=Array.prototype.slice.call(document.querySelectorAll('[data-qr]'));
       if(!items.length){ alert('Keine Links vorhanden.'); return; }
+      // Batch im aktuell gewählten Stil (Farben, Rand, Modulgröße, Logo)
       var ecl=elEcl?elEcl.value:'M', done=0, old=zipBtn.textContent;
+      var sc=Math.max(2,num(elScale,8)), mg=Math.max(0,num(elMargin,4));
       zipBtn.disabled=true; zipBtn.textContent='Erzeuge … 0/'+items.length;
       var jobs=[];
       items.forEach(function(b){
         var slug=b.getAttribute('data-slug')||'qr', url=b.getAttribute('data-qr'), qr;
         try{ qr=QRCodeGen.encode(url, ecl); }catch(e){ return; }
-        jobs.push(canvasBytes(overlay(plainCanvas(qr,8,4),'#fff')).then(function(bytes){
+        jobs.push(canvasBytes(overlay(draw(qr,sc,mg),elBg.value)).then(function(bytes){
           zipBtn.textContent='Erzeuge … '+(++done)+'/'+items.length;
           return {name:'qr-'+slug+'.png', data:bytes};
         }));

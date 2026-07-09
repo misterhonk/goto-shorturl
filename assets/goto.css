@@ -262,6 +262,12 @@ code{background:var(--fill);border:1px solid var(--line);padding:.12rem .4rem;bo
 .card .chk--remember{display:flex;align-items:center;gap:.5rem;margin:.9rem 0 0;color:var(--muted)}
 .card .chk--remember input{width:auto}
 
+/* Titel-holen-Feld (Input + Button nebeneinander) */
+.fetchfield{display:flex;gap:.4rem;align-items:stretch}
+.fetchfield input{flex:1;width:auto}
+.fetchfield .btn{flex:0 0 auto;padding:.45rem .6rem}
+.dupehint{margin:.5rem 0 0;color:var(--info-fg)}
+
 /* Inline-Validierung */
 input.valid{border-color:#28a745}
 input.invalid{border-color:var(--red)}

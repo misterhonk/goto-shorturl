@@ -5,6 +5,30 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+### Hinzugefügt
+- **Geräte-Verwaltung:** aktive „Angemeldet bleiben"-Geräte (Browser · System,
+  angemeldet seit / zuletzt gesehen) im Admin einsehen und einzeln oder „alle
+  anderen" abmelden – wichtig, weil diese Geräte auch die 2FA-Abfrage überspringen.
+- **Ablauf-Ersatz-URL:** je Link optional ein Ziel, auf das nach Ablauf statt
+  der `410`-Seite weitergeleitet wird (Admin-Feld und API-Feld `expires_url`;
+  Query-Parameter werden mitgereicht).
+- **Titel-Autofill:** Knopf beim Anlegen holt den `<title>` der Zielseite
+  (opt-in via `title_fetch`, standardmäßig an). Serverseitig **SSRF-geschützt**
+  (nur öffentliche Hosts, keine Redirects, Größen-/Zeitlimit).
+- **Duplikat-Hinweis:** beim Eingeben einer Ziel-URL, die es schon als anderes
+  Kürzel gibt, erscheint ein dezenter Hinweis (rein im Browser).
+- **Update-Hinweis in der Diagnose:** prüft opt-in (`update_check`) die neueste
+  Release-Version bei GitHub und meldet, wenn eine neuere verfügbar ist.
+- **Bulk-QR im gewählten Stil:** der ZIP-Export übernimmt jetzt Farben, Rand,
+  Modulgröße und Logo aus dem QR-Dialog (bisher immer schwarz/weiß).
+
+### Behoben
+- **CSP blockierte die Diagnose-Browser-Checks:** der Admin-CSP fehlte
+  `connect-src`, wodurch `fetch()` auf `default-src 'none'` fiel. Die
+  Datenschutz- und Rewriting-Prüfung liefen dadurch ins Leere (falsches
+  „OK"/„Fehler"). Jetzt `connect-src 'self'` (plus `api.github.com` bei
+  aktiviertem Update-Check) – die Checks prüfen wieder echt.
+
 ## [0.8.0] – 2026-07-09
 
 ### Hinzugefügt

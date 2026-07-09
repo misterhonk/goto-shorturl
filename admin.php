@@ -16,6 +16,8 @@ define('ATTEMPTS_FILE', $dataDir . '/.ht_attempts.json');
 define('TOKENS_FILE',   $dataDir . '/.ht_tokens.json');
 define('AUTH_FILE',     $dataDir . '/.ht_auth.json');
 define('SHOW_FAVICONS', (bool) ($cfg['favicons'] ?? true));
+define('TITLE_FETCH',   (bool) ($cfg['title_fetch'] ?? true));
+define('UPDATE_CHECK',  (bool) ($cfg['update_check'] ?? false));
 
 // Sprache: Cookie > config.php > Deutsch. Übersetzung über lang.php (Fallback: Deutsch).
 $LANG_EN = (array) (@include __DIR__ . '/lang.php');
@@ -151,6 +153,24 @@ function csrf_ok(): bool {
 
 /* ---- Remember-Me (Selector:Validator, nur Hash gespeichert) ------- */
 
+// Kurzes, gut lesbares Geräte-Label aus dem User-Agent (Browser · System).
+// Rein für die eigene Geräteübersicht; kein Tracking, nichts wird verschickt.
+function ua_label(string $ua): string {
+    $os = 'System';
+    if     (stripos($ua, 'Windows') !== false)                                    $os = 'Windows';
+    elseif (stripos($ua, 'iPhone') !== false || stripos($ua, 'iPad') !== false)   $os = 'iOS';
+    elseif (stripos($ua, 'Mac OS') !== false || stripos($ua, 'Macintosh') !== false) $os = 'macOS';
+    elseif (stripos($ua, 'Android') !== false)                                    $os = 'Android';
+    elseif (stripos($ua, 'Linux') !== false)                                      $os = 'Linux';
+    $br = 'Browser';
+    if     (stripos($ua, 'Edg') !== false)                                        $br = 'Edge';
+    elseif (stripos($ua, 'OPR') !== false || stripos($ua, 'Opera') !== false)     $br = 'Opera';
+    elseif (stripos($ua, 'Firefox') !== false)                                    $br = 'Firefox';
+    elseif (stripos($ua, 'Chrome') !== false)                                     $br = 'Chrome';
+    elseif (stripos($ua, 'Safari') !== false)                                     $br = 'Safari';
+    return $br . ' · ' . $os;
+}
+
 function remember_purge(array $t): array {
     $now = time();
     foreach ($t as $s => $r) if (($r['exp'] ?? 0) < $now) unset($t[$s]);
@@ -166,7 +186,9 @@ function remember_set(string $cookieDir, bool $https): void {
     $sel = bin2hex(random_bytes(9));
     $val = bin2hex(random_bytes(32));
     $t = remember_purge(load_json(TOKENS_FILE));
-    $t[$sel] = ['h' => hash('sha256', $val), 'exp' => time() + REMEMBER_TTL];
+    $t[$sel] = ['h' => hash('sha256', $val), 'exp' => time() + REMEMBER_TTL,
+                'created' => time(), 'seen' => time(),
+                'ua' => ua_label((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''))];
     save_json(TOKENS_FILE, $t);
     remember_cookie($sel . ':' . $val, time() + REMEMBER_TTL, $cookieDir, $https);
 }
@@ -190,10 +212,12 @@ function remember_try(string $cookieDir, bool $https): bool {
         || !hash_equals((string) ($rec['h'] ?? ''), hash('sha256', $val))) {
         return false;
     }
-    // Token bei jeder Nutzung rotieren
+    // Token bei jeder Nutzung rotieren (Metadaten erhalten, „zuletzt" aktualisieren)
     $nv = bin2hex(random_bytes(32));
     $t = remember_purge($t);
-    $t[$sel] = ['h' => hash('sha256', $nv), 'exp' => time() + REMEMBER_TTL];
+    $t[$sel] = ['h' => hash('sha256', $nv), 'exp' => time() + REMEMBER_TTL,
+                'created' => (int) ($rec['created'] ?? time()), 'seen' => time(),
+                'ua' => (string) ($rec['ua'] ?? ua_label((string) ($_SERVER['HTTP_USER_AGENT'] ?? '')))];
     save_json(TOKENS_FILE, $t);
     remember_cookie($sel . ':' . $nv, time() + REMEMBER_TTL, $cookieDir, $https);
     return true;
@@ -268,9 +292,12 @@ header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: no-referrer');
 header('X-Robots-Tag: noindex, nofollow');
 if ($https) header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
-$imgSrc = "img-src 'self' data:" . (SHOW_FAVICONS ? ' https://icons.duckduckgo.com' : '');
+$imgSrc  = "img-src 'self' data:" . (SHOW_FAVICONS ? ' https://icons.duckduckgo.com' : '');
+// connect-src wird u. a. für die Diagnose-fetch-Checks benötigt; der
+// Update-Check (opt-in) erlaubt zusätzlich api.github.com.
+$connect = "connect-src 'self'" . ((bool) ($cfg['update_check'] ?? false) ? ' https://api.github.com' : '');
 header(
-    "Content-Security-Policy: default-src 'none'; " . $imgSrc . "; " .
+    "Content-Security-Policy: default-src 'none'; " . $imgSrc . "; " . $connect . "; " .
     "style-src 'self' 'nonce-$nonce'; script-src 'self' 'nonce-$nonce'; " .
     "form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
 );
@@ -426,6 +453,10 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
                 <?php endif; ?>
                 <label class="chk"><input form="editform" type="checkbox" name="preview" value="1"<?= !empty($l['preview']) ? ' checked' : '' ?>> <?= t('Vorschau-Seite vor der Weiterleitung') ?></label>
               </div>
+              <label class="field">
+                <span class="field-label"><?= t('Ziel nach Ablauf (optional)') ?></span>
+                <input form="editform" type="text" name="expires_url" value="<?= e((string) ($l['expires_url'] ?? '')) ?>" placeholder="<?= t('z. B. https://ziel-adresse.de/aktion-vorbei') ?>">
+              </label>
               <div class="erow erow--actions">
                 <button form="editform" class="btn btn--primary btn--small"><?= icon('check') ?><?= t('Speichern') ?></button>
                 <a class="btn btn--ghost btn--small" href="<?= e($self) ?>"><?= icon('x') ?><?= t('Abbrechen') ?></a>
@@ -621,6 +652,64 @@ if (!$loggedIn && !empty($_SESSION['totp_pending'])
 }
 
 /* ================================================================== *
+ *  4b) Titel von der Zielseite holen  (GET, nur eingeloggt, opt-in)
+ * ================================================================== */
+
+// SSRF-Schutz: nur öffentlich erreichbare Hosts. Private/lokale/reservierte
+// IP-Bereiche werden abgelehnt (keine internen Netze abfragbar).
+function host_is_public(string $host): bool {
+    if ($host === '') return false;
+    if (filter_var($host, FILTER_VALIDATE_IP)) {
+        return (bool) filter_var($host, FILTER_VALIDATE_IP,
+            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+    }
+    $ips = @gethostbynamel($host);
+    if (!$ips) return false;                    // nicht auflösbar -> ablehnen
+    foreach ($ips as $ip) {
+        if (!filter_var($ip, FILTER_VALIDATE_IP,
+            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) return false;
+    }
+    return true;
+}
+
+function fetch_page_title(string $url): ?string {
+    if (!valid_url($url)) return null;
+    if (!host_is_public((string) parse_url($url, PHP_URL_HOST))) return null;
+    $html = '';
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false,   // keine Redirects (SSRF-Umgehung vermeiden)
+            CURLOPT_TIMEOUT        => 5,
+            CURLOPT_CONNECTTIMEOUT => 4,
+            CURLOPT_MAXFILESIZE    => 512000,
+            CURLOPT_USERAGENT      => 'GOTO-TitleFetch/1.0',
+            CURLOPT_HTTPHEADER     => ['Accept: text/html'],
+        ]);
+        $html = (string) curl_exec($ch);
+        curl_close($ch);
+    } else {
+        $ctx  = stream_context_create(['http' => ['timeout' => 5, 'follow_location' => 0,
+                'header' => "User-Agent: GOTO-TitleFetch/1.0\r\nAccept: text/html\r\n"]]);
+        $html = (string) @file_get_contents($url, false, $ctx, 0, 512000);
+    }
+    if ($html === '' || !preg_match('/<title[^>]*>(.*?)<\/title>/is', $html, $m)) return null;
+    $title = html_entity_decode(trim($m[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    return clean_title($title);
+}
+
+if ($loggedIn && isset($_GET['fetchtitle'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    if (!TITLE_FETCH) { http_response_code(403); exit(json_encode(['ok' => false, 'error' => 'disabled'])); }
+    $title = fetch_page_title(trim((string) $_GET['fetchtitle']));
+    echo json_encode($title !== null && $title !== ''
+        ? ['ok' => true, 'title' => $title]
+        : ['ok' => false, 'error' => 'no_title']);
+    exit;
+}
+
+/* ================================================================== *
  *  5) Export  (GET, nur eingeloggt)
  * ================================================================== */
 
@@ -665,6 +754,8 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
     $title  = clean_title((string) ($_POST['title'] ?? ''));
     $expires = clean_date((string) ($_POST['expires'] ?? ''));
     $linkpw  = (string) ($_POST['linkpw'] ?? '');   // Link-Passwort (optional, wird gehasht)
+    $expUrl  = trim((string) ($_POST['expires_url'] ?? ''));   // Ziel nach Ablauf (optional)
+    if (!valid_url($expUrl)) $expUrl = '';
     $groupValid = ($group === '' || in_array($group, $data['groups'], true)) ? $group : '';
 
     if ($action === 'add') {
@@ -680,7 +771,7 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
                 $data['links'][$slug] = ['url' => $url, 'group' => $groupValid,
                     'title' => $title, 'expires' => $expires, 'created' => time(),
                     'pass' => ($linkpw !== '') ? password_hash($linkpw, PASSWORD_DEFAULT) : '',
-                    'preview' => !empty($_POST['preview'])];
+                    'preview' => !empty($_POST['preview']), 'expires_url' => $expUrl];
                 save_data($data)
                     ? flash(t('„%s“ angelegt.', $slug), 'success')
                     : flash(t('Konnte nicht speichern – Schreibrechte für urls.json prüfen.'));
@@ -699,7 +790,8 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
             // Link-Passwort: Checkbox entfernt es, neues ersetzt es, leer = unverändert
             if (!empty($_POST['pwclear'])) $entry['pass'] = '';
             elseif ($linkpw !== '')        $entry['pass'] = password_hash($linkpw, PASSWORD_DEFAULT);
-            $entry['preview'] = !empty($_POST['preview']);
+            $entry['preview']     = !empty($_POST['preview']);
+            $entry['expires_url'] = $expUrl;
             if ($newslug === $slug) {
                 $data['links'][$slug] = $entry;
             } else {
@@ -830,7 +922,7 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
             $data['links'][$slug] = ['url' => (string) ($it['url'] ?? ''), 'group' => $g,
                 'title' => (string) ($it['title'] ?? ''), 'expires' => (string) ($it['expires'] ?? ''),
                 'created' => (int) ($it['created'] ?? 0), 'pass' => (string) ($it['pass'] ?? ''),
-                'preview' => !empty($it['preview'])];
+                'preview' => !empty($it['preview']), 'expires_url' => (string) ($it['expires_url'] ?? '')];
             $clrec = $it['clicks'] ?? 0;
             unset($tr[$slug]);
             $cl = load_clicks(); if ($clrec) $cl[$slug] = $clrec; save_clicks($cl);
@@ -868,6 +960,22 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
             save_api_tokens($tokens);
             flash(t('API-Token widerrufen.'), 'success');
         }
+    } elseif ($action === 'device_revoke') {
+        $sel = preg_replace('/[^0-9a-f]/', '', (string) ($_POST['sel'] ?? ''));
+        $cur = explode(':', (string) ($_COOKIE[REMEMBER_COOKIE] ?? ''), 2)[0];
+        $tk  = load_json(TOKENS_FILE);
+        if ($sel !== '' && isset($tk[$sel])) {
+            unset($tk[$sel]);
+            save_json(TOKENS_FILE, $tk);
+            if ($sel === $cur) remember_forget($cookieDir, $https);   // eigenes Gerät -> Cookie mit weg
+            flash(t('Gerät abgemeldet.'), 'success');
+        }
+    } elseif ($action === 'device_revoke_others') {
+        $cur = explode(':', (string) ($_COOKIE[REMEMBER_COOKIE] ?? ''), 2)[0];
+        $tk  = load_json(TOKENS_FILE);
+        $keep = ($cur !== '' && isset($tk[$cur])) ? [$cur => $tk[$cur]] : [];
+        save_json(TOKENS_FILE, $keep);
+        flash(t('Andere Geräte abgemeldet.'), 'success');
     } elseif ($action === 'totp_setup') {
         $_SESSION['totp_new'] = base32_encode(random_bytes(20));
     } elseif ($action === 'totp_cancel') {
@@ -1011,6 +1119,17 @@ head('GOTO', $nonce);
 </div>
 <?php endif; ?>
 
+<?php
+// Normalisierte Ziel-URL -> Kürzel, für den Duplikat-Hinweis beim Anlegen
+$normUrl = function (string $u): string {
+    $u = strtolower(trim($u));
+    $u = preg_replace('#^https?://#', '', $u) ?? $u;
+    $u = preg_replace('#^www\.#', '', $u) ?? $u;
+    return rtrim($u, '/');
+};
+$dupeMap = [];
+foreach ($links as $s => $l) { $k = $normUrl((string) $l['url']); if ($k !== '' && !isset($dupeMap[$k])) $dupeMap[$k] = $s; }
+?>
 <div class="panel">
   <!-- Schnellfall: URL einfügen, Enter – fertig. Alles Weitere ist aufklappbar. -->
   <form id="addform" method="post" autocomplete="off">
@@ -1019,10 +1138,13 @@ head('GOTO', $nonce);
     <div class="bar bar--end">
       <label class="field grow">
         <span class="field-label"><?= t('Ziel-URL') ?></span>
-        <input type="text" name="url" placeholder="https://ziel-adresse.de/…" required>
+        <input type="text" name="url" placeholder="https://ziel-adresse.de/…" required
+               data-dupe="<?= e(json_encode($dupeMap, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) ?>"
+               data-dupe-tpl="<?= e(t('Diese Ziel-URL gibt es schon als „%s".')) ?>">
       </label>
       <button class="btn btn--primary"><?= icon('plus') ?><?= t('Hinzufügen') ?></button>
     </div>
+    <p class="muted dupehint" id="dupehint" hidden></p>
   </form>
 
   <details class="addopts" id="addopts">
@@ -1047,11 +1169,20 @@ head('GOTO', $nonce);
     <div class="bar">
       <label class="field grow">
         <span class="field-label"><?= t('Titel / Notiz') ?></span>
-        <input form="addform" type="text" name="title" placeholder="optional – z. B. „Intro-Video“">
+        <span class="fetchfield">
+          <input form="addform" type="text" name="title" placeholder="optional – z. B. „Intro-Video“">
+          <?php if (TITLE_FETCH): ?><button type="button" class="btn btn--ghost btn--small" data-fetchtitle title="<?= t('Titel von der Zielseite holen') ?>"><?= icon('download') ?></button><?php endif; ?>
+        </span>
       </label>
       <label class="field field--pw">
         <span class="field-label"><?= t('Passwort (optional)') ?></span>
         <input form="addform" type="password" name="linkpw" autocomplete="new-password" placeholder="<?= t('leer = ohne') ?>">
+      </label>
+    </div>
+    <div class="bar">
+      <label class="field grow">
+        <span class="field-label"><?= t('Ziel nach Ablauf (optional)') ?></span>
+        <input form="addform" type="text" name="expires_url" placeholder="<?= t('z. B. https://ziel-adresse.de/aktion-vorbei') ?>">
       </label>
     </div>
     <label class="chk chk--opt"><input form="addform" type="checkbox" name="preview" value="1"> <?= t('Vorschau-Seite vor der Weiterleitung') ?></label>
@@ -1325,6 +1456,42 @@ $totpPendingSetup = (string) ($_SESSION['totp_new'] ?? '');
 </details>
 
 <?php
+$devices = remember_purge(load_json(TOKENS_FILE));
+$curSel  = explode(':', (string) ($_COOKIE[REMEMBER_COOKIE] ?? ''), 2)[0];
+uasort($devices, fn($a, $b) => (int) ($b['seen'] ?? 0) <=> (int) ($a['seen'] ?? 0));
+?>
+<?php if ($devices): ?>
+<details class="tools">
+  <summary><?= icon('logout') ?><?= t('Angemeldete Geräte') ?> <span class="count"><?= count($devices) ?></span></summary>
+  <p class="muted"><?= t('Geräte mit aktivem „Angemeldet bleiben"-Zugang. Diese überspringen beim Login auch die 2FA-Abfrage – unbekannte hier abmelden.') ?></p>
+  <table class="trashlist">
+    <?php foreach ($devices as $sel => $dv): ?>
+    <tr>
+      <td><span class="slugmono"><?= e((string) ($dv['ua'] ?? t('Unbekanntes Gerät'))) ?></span><?php if ($sel === $curSel): ?> <span class="chip chip--date"><?= t('dieses Gerät') ?></span><?php endif; ?></td>
+      <td class="muted nowrap"><?= ($dv['seen'] ?? 0) ? t('zuletzt %s', date('d.m.Y', (int) $dv['seen'])) : '' ?></td>
+      <td class="muted nowrap"><?= ($dv['created'] ?? 0) ? t('seit %s', date('d.m.Y', (int) $dv['created'])) : '' ?></td>
+      <td class="actions">
+        <form class="inline" method="post"<?= $sel === $curSel ? ' data-confirm="' . e(t('Dieses Gerät abmelden? Du wirst hier ausgeloggt.')) . '"' : '' ?>>
+          <input type="hidden" name="action" value="device_revoke">
+          <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
+          <input type="hidden" name="sel" value="<?= e((string) $sel) ?>">
+          <button class="btn btn--danger btn--small"><?= icon('logout') ?><?= t('Abmelden') ?></button>
+        </form>
+      </td>
+    </tr>
+    <?php endforeach; ?>
+  </table>
+  <?php if (count($devices) > 1): ?>
+  <form class="inline" method="post" data-confirm="<?= e(t('Alle anderen Geräte abmelden?')) ?>">
+    <input type="hidden" name="action" value="device_revoke_others">
+    <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
+    <button class="btn btn--ghost btn--small"><?= icon('logout') ?><?= t('Alle anderen abmelden') ?></button>
+  </form>
+  <?php endif; ?>
+</details>
+<?php endif; ?>
+
+<?php
 $apiTokens = load_api_tokens();
 $newToken  = $_SESSION['new_token'] ?? null;
 unset($_SESSION['new_token']);
@@ -1397,7 +1564,9 @@ $diagChecks = [
     [t('Backups'), true, $diagBackupTxt],
 ];
 ?>
-<details class="tools" id="diag" data-l-ok="<?= e(t('OK')) ?>" data-l-err="<?= e(t('Fehler')) ?>">
+<details class="tools" id="diag" data-l-ok="<?= e(t('OK')) ?>" data-l-err="<?= e(t('Fehler')) ?>"
+     data-version="<?= e(GOTO_VERSION) ?>"
+     data-l-uptodate="<?= e(t('aktuell')) ?>" data-l-update="<?= e(t('Version %s verfügbar')) ?>"<?= UPDATE_CHECK ? ' data-update-check="1"' : '' ?>>
   <summary><?= icon('pulse') ?><?= t('Diagnose') ?></summary>
   <table class="trashlist">
     <?php foreach ($diagChecks as [$dLabel, $dOk, $dDetail]): ?>
@@ -1407,6 +1576,13 @@ $diagChecks = [
       <td class="muted"><?= e($dDetail) ?></td>
     </tr>
     <?php endforeach; ?>
+    <?php if (UPDATE_CHECK): ?>
+    <tr data-diag-update="1">
+      <td><?= t('Aktualität') ?></td>
+      <td class="nowrap"><span class="diagstat diagstat--pend">…</span></td>
+      <td class="muted diagdetail"></td>
+    </tr>
+    <?php endif; ?>
     <tr data-diag-fetch="<?= e($cookieDir) ?>urls.json" data-diag-expect="blocked">
       <td><?= t('Datenschutz: urls.json ist per HTTP gesperrt') ?></td>
       <td class="nowrap"><span class="diagstat diagstat--pend">…</span></td>

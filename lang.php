@@ -172,6 +172,26 @@ return [
     'API-Token widerrufen.'             => 'API token revoked.',
     'Bitte einen Namen für den Token angeben.' => 'Please provide a name for the token.',
 
+    // Geräte, Ablauf-Ersatz, Titel-Fetch, Duplikat, Update-Check
+    'Angemeldete Geräte'                 => 'Signed-in devices',
+    'Geräte mit aktivem „Angemeldet bleiben"-Zugang. Diese überspringen beim Login auch die 2FA-Abfrage – unbekannte hier abmelden.'
+        => 'Devices with active “stay logged in” access. These also skip the 2FA prompt at login – sign out any you don’t recognise.',
+    'Unbekanntes Gerät'                  => 'Unknown device',
+    'dieses Gerät'                       => 'this device',
+    'seit %s'                            => 'since %s',
+    'Gerät abgemeldet.'                  => 'Device signed out.',
+    'Andere Geräte abgemeldet.'          => 'Other devices signed out.',
+    'Dieses Gerät abmelden? Du wirst hier ausgeloggt.' => 'Sign out this device? You will be logged out here.',
+    'Alle anderen Geräte abmelden?'      => 'Sign out all other devices?',
+    'Alle anderen abmelden'              => 'Sign out all others',
+    'Ziel nach Ablauf (optional)'        => 'Destination after expiry (optional)',
+    'z. B. https://ziel-adresse.de/aktion-vorbei' => 'e.g. https://example.com/campaign-ended',
+    'Titel von der Zielseite holen'      => 'Fetch title from the destination page',
+    'Diese Ziel-URL gibt es schon als „%s".' => 'This destination URL already exists as “%s”.',
+    'Aktualität'                         => 'Up to date',
+    'aktuell'                            => 'up to date',
+    'Version %s verfügbar'               => 'version %s available',
+
     // Werkzeugkasten & Empty-State
     'Einstellungen & Werkzeuge'          => 'Settings & tools',
     'Füge oben deine erste Ziel-URL ein – ein Kürzel wird automatisch erzeugt.'

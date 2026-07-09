@@ -18,7 +18,7 @@ declare(strict_types=1);
  *      } } }
  * ------------------------------------------------------------------ */
 
-const GOTO_VERSION = '0.8.0';
+const GOTO_VERSION = '0.9.0';
 
 @ini_set('display_errors', '0');   // Produktion: keine PHP-Fehler an Besucher ausgeben
 
@@ -124,10 +124,12 @@ function normalize_data($raw): array {
         $created = is_array($item) ? (int) ($item['created'] ?? 0) : 0;
         $pass    = is_array($item) ? (string) ($item['pass'] ?? '') : '';
         $preview = is_array($item) && !empty($item['preview']);
+        $expUrl  = is_array($item) ? (string) ($item['expires_url'] ?? '') : '';
+        if (!valid_url($expUrl)) $expUrl = '';
         if ($group !== '' && !in_array($group, $groups, true)) $groups[] = $group;
         $links[$slug] = ['url' => $url, 'group' => $group, 'title' => $title,
                          'expires' => $expires, 'created' => $created,
-                         'pass' => $pass, 'preview' => $preview];
+                         'pass' => $pass, 'preview' => $preview, 'expires_url' => $expUrl];
     }
     return ['groups' => $groups, 'links' => $links];
 }

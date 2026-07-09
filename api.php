@@ -115,9 +115,10 @@ function link_out(string $slug, array $l, array $clicks, bool $withDays = false)
         'title'     => (string) $l['title'],
         'expires'   => (string) $l['expires'],
         'created'   => (int) $l['created'],
-        'protected' => ($l['pass'] ?? '') !== '',
-        'preview'   => !empty($l['preview']),
-        'clicks'    => clicks_total($clicks, $slug),
+        'protected'   => ($l['pass'] ?? '') !== '',
+        'preview'     => !empty($l['preview']),
+        'expires_url' => (string) ($l['expires_url'] ?? ''),
+        'clicks'      => clicks_total($clicks, $slug),
     ];
     if ($withDays) {
         $days = clicks_days($clicks, $slug);
@@ -179,6 +180,10 @@ if ($method === 'PATCH') {
     if (array_key_exists('title', $in))   $l['title'] = clean_title((string) $in['title']);
     if (array_key_exists('expires', $in)) $l['expires'] = clean_date((string) $in['expires']);
     if (array_key_exists('preview', $in)) $l['preview'] = filter_var($in['preview'], FILTER_VALIDATE_BOOL);
+    if (array_key_exists('expires_url', $in)) {
+        $eu = trim((string) $in['expires_url']);
+        $l['expires_url'] = ($eu === '' || valid_url($eu)) ? $eu : ($l['expires_url'] ?? '');
+    }
     if (array_key_exists('password', $in)) {
         $pw = (string) $in['password'];
         $l['pass'] = $pw === '' ? '' : password_hash($pw, PASSWORD_DEFAULT);   // "" entfernt das Passwort
@@ -244,10 +249,13 @@ if (isset($data['links'][$slug])) {
 }
 if ($group !== '' && !in_array($group, $data['groups'], true)) $data['groups'][] = $group;
 
+$expUrlIn = trim((string) ($in['expires_url'] ?? ''));
+if (!valid_url($expUrlIn)) $expUrlIn = '';
 $data['links'][$slug] = ['url' => $url, 'group' => $group, 'title' => $title,
                          'expires' => $expires, 'created' => time(),
                          'pass' => ($linkpw !== '') ? password_hash($linkpw, PASSWORD_DEFAULT) : '',
-                         'preview' => filter_var($in['preview'] ?? false, FILTER_VALIDATE_BOOL)];
+                         'preview' => filter_var($in['preview'] ?? false, FILTER_VALIDATE_BOOL),
+                         'expires_url' => $expUrlIn];
 
 if (!save_data($data)) {
     respond(500, ['ok' => false, 'error' => 'write_failed', 'message' => 'Could not save – check write permissions for urls.json.']);
@@ -260,7 +268,8 @@ respond(201, [
     'url'       => $url,
     'group'     => $group,
     'title'     => $title,
-    'expires'   => $expires,
-    'protected' => ($linkpw !== ''),
-    'preview'   => filter_var($in['preview'] ?? false, FILTER_VALIDATE_BOOL),
+    'expires'     => $expires,
+    'protected'   => ($linkpw !== ''),
+    'preview'     => filter_var($in['preview'] ?? false, FILTER_VALIDATE_BOOL),
+    'expires_url' => $expUrlIn,
 ]);

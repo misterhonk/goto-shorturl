@@ -22,6 +22,15 @@ return [
     // icons.duckduckgo.com (ein externer Abruf je Domain). false = aus.
     'favicons'        => true,
 
+    // In der Diagnose prüfen, ob eine neuere GOTO-Version verfügbar ist.
+    // true fragt beim Öffnen der Diagnose einmal api.github.com ab. false = aus.
+    'update_check'    => false,
+
+    // „Titel von Zielseite holen"-Knopf beim Anlegen. true erlaubt GOTO, die
+    // Zielseite serverseitig abzurufen, um deren <title> zu übernehmen
+    // (nur öffentliche Adressen; ein ausgehender Request). false = aus.
+    'title_fetch'     => true,
+
     // Standardsprache der Oberfläche: 'de' oder 'en'. Lässt sich im Admin
     // jederzeit umschalten (wird pro Browser als Cookie gespeichert).
     'lang'            => 'de',
