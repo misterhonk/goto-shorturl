@@ -82,7 +82,8 @@
   var selall=document.getElementById('selall'), selcount=document.getElementById('selcount');
   function upd(){ var n=boxes.filter(function(b){return b.checked;}).length;
     if(selcount){ var tpl=selcount.getAttribute('data-tpl')||'%d markiert'; selcount.textContent=tpl.replace('%d',n); }
-    if(selall) selall.checked=(n>0&&n===boxes.length); }
+    if(selall) selall.checked=(n>0&&n===boxes.length);
+    if(bulk) bulk.classList.toggle('on', n>0); }   // Bulkbar nur bei Auswahl zeigen
   boxes.forEach(function(b){ b.addEventListener('change',upd); });
   if(selall) selall.addEventListener('change',function(){ boxes.forEach(function(b){ b.checked=selall.checked; }); upd(); });
   var bulk=document.getElementById('bulk');

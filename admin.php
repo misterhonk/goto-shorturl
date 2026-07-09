@@ -356,6 +356,9 @@ function icon(string $name): string {
         'search'   => '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
         'undo'     => '<path d="M3 7v6h6"/><path d="M3.5 13a9 9 0 1 0 2.3-9.3L3 8"/>',
         'eye'      => '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>',
+        'shield'   => '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+        'key'      => '<circle cx="7.5" cy="15.5" r="5.5"/><path d="M21 2l-9.6 9.6M15.5 7.5l3 3"/>',
+        'pulse'    => '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
     ];
     return '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
          . 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
@@ -999,7 +1002,7 @@ head('GOTO', $nonce);
 ?>
 <div class="stats">
   <div class="stat"><span class="stat-label"><?= t('Links') ?></span><div class="stat-value"><?= count($links) ?></div></div>
-  <button type="button" class="stat stat--btn" data-days="<?= e(json_encode($aggDays, JSON_FORCE_OBJECT)) ?>" data-total="<?= $statTotal ?>" data-slug="<?= e(t('Alle Links')) ?>" title="<?= t('Klick-Verlauf anzeigen') ?>"><span class="stat-label"><?= t('Aufrufe gesamt') ?></span><div class="stat-value"><?= $statTotal ?></div></button>
+  <button type="button" class="stat stat--btn" data-days="<?= e(json_encode($aggDays, JSON_FORCE_OBJECT)) ?>" data-total="<?= $statTotal ?>" data-slug="<?= e(t('Alle Links')) ?>" title="<?= t('Klick-Verlauf anzeigen') ?>"><span class="stat-label"><?= t('Aufrufe gesamt') ?><?= icon('bars') ?></span><div class="stat-value"><?= $statTotal ?></div></button>
   <div class="stat"><span class="stat-label"><?= t('Heute') ?></span><div class="stat-value"><?= $statNow ?></div></div>
   <div class="stat"><span class="stat-label"><?= t('Letzte 7 Tage') ?></span><div class="stat-value"><?= $statWeek ?></div></div>
   <?php if ($topN > 0): ?>
@@ -1116,7 +1119,11 @@ head('GOTO', $nonce);
 </form>
 
 <?php if (!$links): ?>
-  <p class="muted empty"><?= t('Noch keine Links angelegt.') ?></p>
+  <div class="emptystate">
+    <span class="emptymark"><?= icon('plus') ?></span>
+    <p><strong><?= t('Noch keine Links angelegt.') ?></strong></p>
+    <p class="muted"><?= t('Füge oben deine erste Ziel-URL ein – ein Kürzel wird automatisch erzeugt.') ?></p>
+  </div>
 <?php endif; ?>
 
 <?php foreach ($groups as $g): ?>
@@ -1224,8 +1231,11 @@ head('GOTO', $nonce);
   </div>
 </dialog>
 
+<div class="toolbox">
+<h2 class="toolbox-title"><?= t('Einstellungen & Werkzeuge') ?></h2>
+
 <details class="tools">
-  <summary><?= t('Export / Import') ?></summary>
+  <summary><?= icon('download') ?><?= t('Export / Import') ?></summary>
   <p class="toolbtns">
     <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?export=1"><?= icon('download') ?><?= t('Export – JSON herunterladen') ?></a>
     <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?export=stats"><?= icon('bars') ?><?= t('Klick-Statistik (CSV)') ?></a>
@@ -1244,7 +1254,7 @@ head('GOTO', $nonce);
 
 <?php if ($hashEditable): ?>
 <details class="tools">
-  <summary><?= t('Passwort ändern') ?></summary>
+  <summary><?= icon('lock') ?><?= t('Passwort ändern') ?></summary>
   <form class="bar bar--end" method="post" autocomplete="off">
     <input type="hidden" name="action" value="change_password">
     <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
@@ -1266,7 +1276,7 @@ $totpSecret       = (string) (load_json(AUTH_FILE)['totp'] ?? '');
 $totpPendingSetup = (string) ($_SESSION['totp_new'] ?? '');
 ?>
 <details class="tools"<?= $totpPendingSetup !== '' ? ' open' : '' ?>>
-  <summary><?= t('Zwei-Faktor-Authentifizierung (2FA)') ?><?php if ($totpSecret !== ''): ?> <span class="count">✓</span><?php endif; ?></summary>
+  <summary><?= icon('shield') ?><?= t('Zwei-Faktor-Authentifizierung (2FA)') ?><?php if ($totpSecret !== ''): ?> <span class="count">✓</span><?php endif; ?></summary>
   <?php if ($totpSecret !== ''): ?>
     <p class="muted"><?= t('2FA ist aktiv. Beim Anmelden wird zusätzlich ein Code aus deiner Authenticator-App abgefragt. „Angemeldet bleiben“-Geräte überspringen die Abfrage.') ?></p>
     <form class="bar bar--end" method="post" autocomplete="off">
@@ -1320,7 +1330,7 @@ $newToken  = $_SESSION['new_token'] ?? null;
 unset($_SESSION['new_token']);
 ?>
 <details class="tools"<?= $newToken ? ' open' : '' ?>>
-  <summary><?= t('API-Zugang') ?><?php if ($apiTokens): ?> <span class="count"><?= count($apiTokens) ?></span><?php endif; ?></summary>
+  <summary><?= icon('key') ?><?= t('API-Zugang') ?><?php if ($apiTokens): ?> <span class="count"><?= count($apiTokens) ?></span><?php endif; ?></summary>
   <?php if ($newToken): ?>
     <p class="muted"><?= t('Token erstellt – jetzt kopieren, er wird nur dieses eine Mal angezeigt:') ?></p>
     <div class="bar bar--end">
@@ -1388,7 +1398,7 @@ $diagChecks = [
 ];
 ?>
 <details class="tools" id="diag" data-l-ok="<?= e(t('OK')) ?>" data-l-err="<?= e(t('Fehler')) ?>">
-  <summary><?= t('Diagnose') ?></summary>
+  <summary><?= icon('pulse') ?><?= t('Diagnose') ?></summary>
   <table class="trashlist">
     <?php foreach ($diagChecks as [$dLabel, $dOk, $dDetail]): ?>
     <tr>
@@ -1413,7 +1423,7 @@ $diagChecks = [
 
 <?php if ($trash): ?>
 <details class="tools">
-  <summary><?= t('Papierkorb') ?> <span class="count"><?= count($trash) ?></span></summary>
+  <summary><?= icon('trash') ?><?= t('Papierkorb') ?> <span class="count"><?= count($trash) ?></span></summary>
   <table class="trashlist">
     <?php foreach ($trash as $tslug => $ti): ?>
     <tr>
@@ -1445,6 +1455,8 @@ $diagChecks = [
   <p class="muted"><?= t('Gelöschte Links landen hier und leiten nicht mehr weiter. Wiederherstellen bringt auch den Klick-Zähler zurück.') ?></p>
 </details>
 <?php endif; ?>
+
+</div><!-- /.toolbox -->
 
 <footer class="foot">
   <span class="foot-brand"><span class="foot-mark"><?= logo_mark() ?></span>GOTO <span class="foot-ver">v<?= e(GOTO_VERSION) ?></span></span>

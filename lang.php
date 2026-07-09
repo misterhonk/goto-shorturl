@@ -172,6 +172,11 @@ return [
     'API-Token widerrufen.'             => 'API token revoked.',
     'Bitte einen Namen für den Token angeben.' => 'Please provide a name for the token.',
 
+    // Werkzeugkasten & Empty-State
+    'Einstellungen & Werkzeuge'          => 'Settings & tools',
+    'Füge oben deine erste Ziel-URL ein – ein Kürzel wird automatisch erzeugt.'
+        => 'Paste your first destination URL above – a slug is generated automatically.',
+
     // Gesamt-Statistik, CSV & Footer
     'Alle Links'                         => 'All links',
     'Klick-Statistik (CSV)'              => 'Click statistics (CSV)',

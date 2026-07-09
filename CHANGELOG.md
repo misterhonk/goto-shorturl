@@ -18,6 +18,13 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 - **Anmelde-, 2FA- und Einrichtungs-Seite neu gestaltet:** zentriertes Layout
   mit großer Logo-Kachel und Wortmarke, dezentem Farb-Glow und sanfter
   Einblend-Animation (respektiert `prefers-reduced-motion`) – hell und dunkel.
+- **UI-Feinschliff:** destruktive Buttons sind jetzt ruhig (rotes Icon,
+  Füllung erst beim Hover); die **Bulk-Leiste erscheint erst, wenn Links
+  markiert sind**; Gruppen-Aktionen zeigen sich beim Hover/Fokus (auf Touch
+  immer); die Einstellungs-Sektionen sind als Karte **„Einstellungen &
+  Werkzeuge"** mit Icons gruppiert; Topbar-Umschalter randlos; die
+  „Aufrufe gesamt"-Kachel zeigt ihre Klickbarkeit per Mini-Icon; freundlicher
+  Empty-State beim ersten Start.
 
 ## [0.7.1] – 2026-07-09
 
