@@ -5,6 +5,8 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+## [0.8.0] – 2026-07-09
+
 ### Hinzugefügt
 - **Gesamt-Statistik:** die Kachel „Aufrufe gesamt" ist jetzt anklickbar und
   öffnet den Klick-Verlauf **aller Links zusammen** (14/30/90 Tage, gleicher
@@ -190,7 +192,8 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
   Drag & Drop, Live-Suche sowie Import/Export.
 - Datenbanklos – alle Daten in JSON-Dateien.
 
-[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/misterhonk/goto-shorturl/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.5.0...v0.6.0
