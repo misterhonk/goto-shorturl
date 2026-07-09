@@ -255,7 +255,7 @@
       cChartEl.innerHTML=''; cChartEl.appendChild(svg);
       cEmpty.hidden=sum>0;
     }
-    document.querySelectorAll('button.clicks[data-days]').forEach(function(b){
+    document.querySelectorAll('button[data-days]').forEach(function(b){
       b.addEventListener('click',function(){
         try{ cDays=JSON.parse(b.getAttribute('data-days'))||{}; }catch(_){ cDays={}; }
         if(Array.isArray(cDays)) cDays={};

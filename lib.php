@@ -18,6 +18,8 @@ declare(strict_types=1);
  *      } } }
  * ------------------------------------------------------------------ */
 
+const GOTO_VERSION = '0.8.0';
+
 @ini_set('display_errors', '0');   // Produktion: keine PHP-Fehler an Besucher ausgeben
 
 $cfg = @include __DIR__ . '/config.php';

@@ -5,6 +5,15 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+### Hinzugefügt
+- **Gesamt-Statistik:** die Kachel „Aufrufe gesamt" ist jetzt anklickbar und
+  öffnet den Klick-Verlauf **aller Links zusammen** (14/30/90 Tage, gleicher
+  Dialog wie je Link).
+- **CSV-Export der Klick-Statistik** unter „Export / Import": Tageswerte je
+  Kürzel plus Gesamt-Zeilen, Semikolon-getrennt (Excel-freundlich), DE/EN.
+- **Footer** im Admin mit Version, Links zu GitHub / Changelog / Handbuch /
+  Issues; Versionskonstante `GOTO_VERSION` (erscheint auch in der Diagnose).
+
 ## [0.7.1] – 2026-07-09
 
 ### Sicherheit

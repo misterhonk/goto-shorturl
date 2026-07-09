@@ -172,6 +172,16 @@ return [
     'API-Token widerrufen.'             => 'API token revoked.',
     'Bitte einen Namen für den Token angeben.' => 'Please provide a name for the token.',
 
+    // Gesamt-Statistik, CSV & Footer
+    'Alle Links'                         => 'All links',
+    'Klick-Statistik (CSV)'              => 'Click statistics (CSV)',
+    'datum;kuerzel;aufrufe'              => 'date;slug;clicks',
+    'gesamt'                             => 'total',
+    'GOTO-Version'                       => 'GOTO version',
+    'Handbuch'                           => 'Manual',
+    'Problem melden'                     => 'Report an issue',
+    'datenbanklos · DSGVO-freundlich · MIT-Lizenz' => 'no database · GDPR-friendly · MIT license',
+
     // Statistik-Kacheln & Klick-Verlauf
     'Aufrufe gesamt'                     => 'Total clicks',
     'Heute'                              => 'Today',

@@ -32,6 +32,8 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
   mit einstellbarer Fehlerkorrektur (L/M/Q/H), Größe, Rand, Farben und optionalem
   **Logo in der Mitte** (GOTO-Logo oder eigenes Bild; bleibt im Browser)
 - **Klick-Zähler** — rein anonym (keine IPs, Zeitstempel oder User-Agents),
+  mit **Gesamt-Statistik** über alle Links (Kachel anklicken) und
+  **CSV-Export** der Tageswerte,
   mit **Statistik-Kacheln** (gesamt / heute / 7 Tage / Top-Link) und
   **Klick-Verlauf** als Diagramm (14 / 30 / 90 Tage)
 - **Titel / Notiz** je Link, **Ablaufdatum** (abgelaufene Links liefern `410 Gone`)

@@ -613,6 +613,24 @@ if (!$loggedIn && !empty($_SESSION['totp_pending'])
  * ================================================================== */
 
 if ($loggedIn && isset($_GET['export'])) {
+    if ($_GET['export'] === 'stats') {
+        // Klick-Statistik als CSV (Semikolon – Excel-freundlich):
+        // Tageswerte je Kürzel plus eine "gesamt"-Zeile (inkl. Werte älter als 90 Tage)
+        $data   = load_data();
+        $clicks = load_clicks();
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="goto-statistik-' . date('Y-m-d') . '.csv"');
+        echo t('datum;kuerzel;aufrufe') . "\r\n";
+        foreach ($data['links'] as $s => $l) {
+            $days = clicks_days($clicks, $s);
+            ksort($days);
+            foreach ($days as $day => $n) echo $day . ';' . $s . ';' . (int) $n . "\r\n";
+        }
+        foreach ($data['links'] as $s => $l) {
+            echo t('gesamt') . ';' . $s . ';' . clicks_total($clicks, $s) . "\r\n";
+        }
+        exit;
+    }
     $json = json_encode(load_data(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     header('Content-Type: application/json; charset=utf-8');
     header('Content-Disposition: attachment; filename="goto-' . date('Y-m-d') . '.json"');
@@ -952,6 +970,7 @@ head('GOTO', $nonce);
     $statTotal = 0; $statNow = 0; $statWeek = 0; $topSlug = ''; $topN = 0;
     $weekKeys = [];
     for ($i = 0; $i < 7; $i++) $weekKeys[] = date('Y-m-d', time() - $i * 86400);
+    $aggDays = [];   // Tageswerte über alle Links summiert (für den Verlaufs-Dialog)
     foreach ($links as $s => $l) {
         $n = clicks_total($clicks, $s);
         $statTotal += $n;
@@ -959,11 +978,12 @@ head('GOTO', $nonce);
         $d = clicks_days($clicks, $s);
         $statNow += (int) ($d[$statToday] ?? 0);
         foreach ($weekKeys as $k) $statWeek += (int) ($d[$k] ?? 0);
+        foreach ($d as $day => $dn) $aggDays[$day] = ($aggDays[$day] ?? 0) + (int) $dn;
     }
 ?>
 <div class="stats">
   <div class="stat"><span class="stat-label"><?= t('Links') ?></span><div class="stat-value"><?= count($links) ?></div></div>
-  <div class="stat"><span class="stat-label"><?= t('Aufrufe gesamt') ?></span><div class="stat-value"><?= $statTotal ?></div></div>
+  <button type="button" class="stat stat--btn" data-days="<?= e(json_encode($aggDays, JSON_FORCE_OBJECT)) ?>" data-total="<?= $statTotal ?>" data-slug="<?= e(t('Alle Links')) ?>" title="<?= t('Klick-Verlauf anzeigen') ?>"><span class="stat-label"><?= t('Aufrufe gesamt') ?></span><div class="stat-value"><?= $statTotal ?></div></button>
   <div class="stat"><span class="stat-label"><?= t('Heute') ?></span><div class="stat-value"><?= $statNow ?></div></div>
   <div class="stat"><span class="stat-label"><?= t('Letzte 7 Tage') ?></span><div class="stat-value"><?= $statWeek ?></div></div>
   <?php if ($topN > 0): ?>
@@ -1192,6 +1212,7 @@ head('GOTO', $nonce);
   <summary><?= t('Export / Import') ?></summary>
   <p class="toolbtns">
     <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?export=1"><?= icon('download') ?><?= t('Export – JSON herunterladen') ?></a>
+    <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?export=stats"><?= icon('bars') ?><?= t('Klick-Statistik (CSV)') ?></a>
     <?php if ($links): ?><button type="button" id="qrAllZip" class="btn btn--ghost btn--small"><?= icon('qr') ?><?= t('Alle QR-Codes (ZIP)') ?></button><?php endif; ?>
   </p>
   <form class="bar" method="post" enctype="multipart/form-data" autocomplete="off">
@@ -1340,6 +1361,7 @@ $diagBackupTxt = $diagDays || $diagBak
     ? t('%d Tages-Backup(s)', count($diagDays)) . ($diagBak ? ' · .bak ' . date('d.m.Y H:i', $diagBak) : '')
     : t('noch keine – entstehen beim ersten Speichern');
 $diagChecks = [
+    [t('GOTO-Version'), true, 'v' . GOTO_VERSION],
     [t('PHP-Version (mind. 8.0)'), PHP_VERSION_ID >= 80000, 'PHP ' . PHP_VERSION],
     [t('mbstring-Erweiterung'), function_exists('mb_substr'),
         function_exists('mb_substr') ? t('vorhanden') : t('fehlt – Texte mit Umlauten werden ggf. falsch gekürzt')],
@@ -1407,6 +1429,15 @@ $diagChecks = [
   <p class="muted"><?= t('Gelöschte Links landen hier und leiten nicht mehr weiter. Wiederherstellen bringt auch den Klick-Zähler zurück.') ?></p>
 </details>
 <?php endif; ?>
+
+<footer class="foot">
+  <span class="foot-brand"><span class="foot-mark"><?= logo_mark() ?></span>GOTO <span class="foot-ver">v<?= e(GOTO_VERSION) ?></span></span>
+  <a href="https://github.com/misterhonk/goto-shorturl" target="_blank" rel="noopener">GitHub</a>
+  <a href="https://github.com/misterhonk/goto-shorturl/releases" target="_blank" rel="noopener">Changelog</a>
+  <a href="https://github.com/misterhonk/goto-shorturl/blob/main/README.md" target="_blank" rel="noopener"><?= t('Handbuch') ?></a>
+  <a href="https://github.com/misterhonk/goto-shorturl/issues" target="_blank" rel="noopener"><?= t('Problem melden') ?></a>
+  <span class="foot-info"><?= t('datenbanklos · DSGVO-freundlich · MIT-Lizenz') ?></span>
+</footer>
 
 <?php
 foot($nonce);
