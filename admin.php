@@ -495,22 +495,31 @@ if ($passwordHash === '') {
         $manualHash = $hash;   // Datenordner nicht beschreibbar -> manueller Weg
     }
     head('GOTO – ' . t('Einrichtung'), $nonce);
-    echo '<div class="topbar"><div class="brand"><span class="brand-mark">' . logo_mark()
-       . '</span><div><h1>GOTO</h1><p class="sub">' . t('Einrichtung') . '</p></div></div></div>';
     render_toasts($flashMsg ? [$flashMsg] : []);
-    if ($manualHash) { ?>
+    ?>
+    <div class="authwrap">
+      <div class="authbrand">
+        <span class="authmark"><?= logo_mark() ?></span>
+        <h1>GOTO</h1>
+        <p class="sub"><?= t('Einrichtung') ?></p>
+      </div>
+      <?php if ($manualHash) { ?>
+      <div class="card authcard">
         <p class="muted">Das automatische Speichern hat nicht geklappt (Schreibrechte im
         Datenverzeichnis fehlen). Trag diese Zeile in <code>config.php</code> ein:</p>
         <textarea class="hashbox" rows="3" readonly>'password_hash' => '<?= e($manualHash) ?>',</textarea>
-    <?php } else { ?>
+      </div>
+      <?php } else { ?>
+      <form class="card authcard" method="post" autocomplete="off">
         <div class="flash info"><?= t('Wichtig: Lege das Passwort jetzt sofort fest. Solange keines gesetzt ist, könnte jede Person mit dieser Adresse es festlegen.') ?></div>
-        <p class="muted"><?= t('Lege ein Passwort fest – es wird sicher (bcrypt) gespeichert. Danach kannst du dich direkt anmelden.') ?></p>
-        <form class="card" method="post" autocomplete="off">
-            <label><?= t('Passwort festlegen (mind. 8 Zeichen)') ?></label>
-            <input type="password" name="new_password" minlength="8" autofocus required>
-            <button class="btn btn--primary"><?= icon('lock') ?><?= t('Passwort speichern') ?></button>
-        </form>
-    <?php }
+        <label><?= t('Passwort festlegen (mind. 8 Zeichen)') ?></label>
+        <input type="password" name="new_password" minlength="8" autofocus required>
+        <button class="btn btn--primary"><?= icon('lock') ?><?= t('Passwort speichern') ?></button>
+      </form>
+      <p class="muted authhint"><?= t('Lege ein Passwort fest – es wird sicher (bcrypt) gespeichert. Danach kannst du dich direkt anmelden.') ?></p>
+      <?php } ?>
+    </div>
+    <?php
     foot($nonce);
     exit;
 }
@@ -893,27 +902,34 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
 
 if (!$loggedIn) {
     head('GOTO – ' . t('Anmelden'), $nonce);
-    echo '<div class="topbar"><div class="brand"><span class="brand-mark">' . logo_mark()
-       . '</span><div><h1>GOTO</h1><p class="sub">' . t('URL-Weiterleitungen &amp; QR-Codes') . '</p></div></div></div>';
     $lt = $flashMsg ? [$flashMsg] : [];
     if ($loginError) $lt[] = ['msg' => $loginError, 'type' => 'error'];
     if ($loginInfo)  $lt[] = ['msg' => $loginInfo,  'type' => 'info'];
     render_toasts($lt);
-    if (!empty($_SESSION['totp_pending'])): ?>
-    <form class="card" method="post" autocomplete="off">
+    ?>
+    <div class="authwrap">
+      <div class="authbrand">
+        <span class="authmark"><?= logo_mark() ?></span>
+        <h1>GOTO</h1>
+        <p class="sub"><?= t('URL-Weiterleitungen &amp; QR-Codes') ?></p>
+      </div>
+      <?php if (!empty($_SESSION['totp_pending'])): ?>
+      <form class="card authcard" method="post" autocomplete="off">
         <label><?= t('Sicherheits-Code aus der Authenticator-App') ?></label>
         <input type="text" name="totpcode" inputmode="numeric" autocomplete="one-time-code" maxlength="7" autofocus required>
         <button class="btn btn--primary"><?= icon('lock') ?><?= t('Bestätigen') ?></button>
         <p class="muted logincancel"><a href="<?= e($self) ?>?logout"><?= t('Zurück zur Anmeldung') ?></a></p>
-    </form>
-    <?php else: ?>
-    <form class="card" method="post" autocomplete="off">
+      </form>
+      <?php else: ?>
+      <form class="card authcard" method="post" autocomplete="off">
         <label><?= t('Passwort') ?></label>
         <input type="password" name="password" autofocus required>
         <label class="chk chk--remember"><input type="checkbox" name="remember" value="1"> <?= t('Angemeldet bleiben') ?></label>
         <button class="btn btn--primary"><?= icon('lock') ?><?= t('Anmelden') ?></button>
-    </form>
-    <?php endif;
+      </form>
+      <?php endif; ?>
+    </div>
+    <?php
     foot($nonce);
     exit;
 }

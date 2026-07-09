@@ -14,6 +14,11 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 - **Footer** im Admin mit Version, Links zu GitHub / Changelog / Handbuch /
   Issues; Versionskonstante `GOTO_VERSION` (erscheint auch in der Diagnose).
 
+### Geändert
+- **Anmelde-, 2FA- und Einrichtungs-Seite neu gestaltet:** zentriertes Layout
+  mit großer Logo-Kachel und Wortmarke, dezentem Farb-Glow und sanfter
+  Einblend-Animation (respektiert `prefers-reduced-motion`) – hell und dunkel.
+
 ## [0.7.1] – 2026-07-09
 
 ### Sicherheit
