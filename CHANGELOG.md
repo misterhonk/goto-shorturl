@@ -20,6 +20,15 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
   Geräte-Kennung, einsehbar und leerbar in der Toolbox. DSGVO-sparsam – **keine
   IP-Adressen**.
 
+- **Voll-Backup:** Export „Voll-Backup (mit Klicks & Papierkorb)" bündelt Links,
+  Klick-Zähler und Papierkorb in einer Datei; der Import erkennt dieses Format
+  und stellt alles wieder her – für den Umzug auf einen anderen Server samt
+  Historie.
+- **Toter-Link-Prüfung:** Knopf in der Diagnose prüft alle Ziel-URLs parallel
+  (HEAD, SSRF-Host-Schutz); nicht erreichbare (404/410/5xx/Timeout) bekommen in
+  der Liste einen „toter Link"-Hinweis. Ist der Server komplett offline, wird
+  statt falscher Markierungen gewarnt.
+
 ### Geändert
 - Toast- und Bulkbar-Animationen respektieren jetzt `prefers-reduced-motion`.
 

@@ -16,6 +16,7 @@ define('ATTEMPTS_FILE', $dataDir . '/.ht_attempts.json');
 define('TOKENS_FILE',   $dataDir . '/.ht_tokens.json');
 define('AUTH_FILE',     $dataDir . '/.ht_auth.json');
 define('AUDIT_FILE',    $dataDir . '/.ht_audit.json');
+define('LINKCHECK_FILE', $dataDir . '/.ht_linkcheck.json');
 define('SHOW_FAVICONS', (bool) ($cfg['favicons'] ?? true));
 define('TITLE_FETCH',   (bool) ($cfg['title_fetch'] ?? true));
 define('UPDATE_CHECK',  (bool) ($cfg['update_check'] ?? false));
@@ -537,7 +538,7 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
               </div>
             </div>
           </td>
-          <td class="target" title="<?= e($url) ?>"><?= e($url) ?><?php if (($l['pass'] ?? '') !== ''): ?><span class="chip chip--lock" title="<?= t('passwortgeschützt') ?>"><?= icon('lock') ?></span><?php endif; ?><?php if (!empty($l['preview'])): ?><span class="chip chip--lock" title="<?= t('Vorschau-Seite aktiv') ?>"><?= icon('eye') ?></span><?php endif; ?><?php if ($l['expires'] !== ''): ?><span class="chip <?= is_expired($l['expires']) ? 'chip--exp' : 'chip--date' ?>"><?= icon('calendar') ?><?= is_expired($l['expires']) ? 'abgelaufen' : e($l['expires']) ?></span><?php endif; ?></td>
+          <td class="target" title="<?= e($url) ?>"><?= e($url) ?><?php if (link_dead($GLOBALS['linkcheck'][$slug] ?? null)): ?><span class="chip chip--exp" title="<?= t('Ziel nicht erreichbar (letzte Prüfung)') ?>"><?= icon('x') ?><?= t('toter Link') ?></span><?php endif; ?><?php if (($l['pass'] ?? '') !== ''): ?><span class="chip chip--lock" title="<?= t('passwortgeschützt') ?>"><?= icon('lock') ?></span><?php endif; ?><?php if (!empty($l['preview'])): ?><span class="chip chip--lock" title="<?= t('Vorschau-Seite aktiv') ?>"><?= icon('eye') ?></span><?php endif; ?><?php if ($l['expires'] !== ''): ?><span class="chip <?= is_expired($l['expires']) ? 'chip--exp' : 'chip--date' ?>"><?= icon('calendar') ?><?= is_expired($l['expires']) ? 'abgelaufen' : e($l['expires']) ?></span><?php endif; ?></td>
           <td class="clickcell"><button type="button" class="clicks" data-slug="<?= e($slug) ?>" data-total="<?= clicks_total($clicks, $slug) ?>" data-days="<?= e(json_encode(clicks_days($clicks, $slug), JSON_FORCE_OBJECT)) ?>" title="<?= t('Klick-Verlauf anzeigen') ?>" aria-label="<?= t('Klick-Verlauf anzeigen') ?>"><?php $spark = sparkline_svg(clicks_days($clicks, $slug)); echo $spark ?: icon('bars'); ?><?= clicks_total($clicks, $slug) ?></button></td>
           <td class="movecell">
             <form method="post" class="inline">
@@ -772,6 +773,43 @@ function fetch_page_title(string $url): ?string {
     return clean_title($title);
 }
 
+// Ein Ergebnis gilt als „tot", wenn das Ziel nicht erreichbar ist (0) oder
+// eindeutig weg ist (404/410/5xx). Bot-/HEAD-Abwehr (401/403/405/429) NICHT.
+function link_dead($rec): bool {
+    if (!is_array($rec)) return false;
+    $c = (int) ($rec['code'] ?? 0);
+    return $c === 0 || $c === 404 || $c === 410 || $c >= 500;
+}
+
+// Alle Ziel-URLs parallel prüfen (curl_multi, HEAD, SSRF-Host-Schutz).
+function check_links(array $links): array {
+    $out = [];
+    if (!function_exists('curl_multi_init')) return $out;
+    $mh = curl_multi_init();
+    $handles = [];
+    foreach ($links as $slug => $l) {
+        $url  = (string) ($l['url'] ?? '');
+        $host = (string) parse_url($url, PHP_URL_HOST);
+        if (!host_is_public($host)) { $out[$slug] = ['code' => -1, 't' => time()]; continue; }
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_NOBODY => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 4,
+            CURLOPT_TIMEOUT => 8, CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_USERAGENT => 'GOTO-LinkCheck/1.0',
+        ]);
+        $handles[$slug] = $ch;
+        curl_multi_add_handle($mh, $ch);
+    }
+    do { $st = curl_multi_exec($mh, $run); if ($run) curl_multi_select($mh, 1.0); } while ($run && $st === CURLM_OK);
+    foreach ($handles as $slug => $ch) {
+        $out[$slug] = ['code' => (int) curl_getinfo($ch, CURLINFO_HTTP_CODE), 't' => time()];
+        curl_multi_remove_handle($mh, $ch);
+        curl_close($ch);
+    }
+    curl_multi_close($mh);
+    return $out;
+}
+
 if ($loggedIn && isset($_GET['fetchtitle'])) {
     header('Content-Type: application/json; charset=utf-8');
     if (!TITLE_FETCH) { http_response_code(403); exit(json_encode(['ok' => false, 'error' => 'disabled'])); }
@@ -803,6 +841,16 @@ if ($loggedIn && isset($_GET['export'])) {
         foreach ($data['links'] as $s => $l) {
             echo t('gesamt') . ';' . $s . ';' . clicks_total($clicks, $s) . "\r\n";
         }
+        exit;
+    }
+    if ($_GET['export'] === 'full') {
+        // Voll-Backup: Links + Klick-Zähler + Papierkorb in einer Datei
+        // (für den Umzug auf einen anderen Server samt Historie).
+        $full = ['goto_backup' => GOTO_VERSION, 'exported' => date('c'),
+                 'data' => load_data(), 'clicks' => load_clicks(), 'trash' => load_trash()];
+        header('Content-Type: application/json; charset=utf-8');
+        header('Content-Disposition: attachment; filename="goto-backup-' . date('Y-m-d') . '.json"');
+        echo json_encode($full, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         exit;
     }
     $json = json_encode(load_data(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
@@ -961,6 +1009,15 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
         } else {
             $content  = (string) file_get_contents($tmp);
             $parsed   = json_decode($content, true);
+            if (is_array($parsed) && isset($parsed['goto_backup'])) {
+                // Voll-Backup: Links + Klicks + Papierkorb komplett ersetzen
+                $bd = normalize_data($parsed['data'] ?? []);
+                save_data($bd);
+                save_clicks(is_array($parsed['clicks'] ?? null) ? $parsed['clicks'] : []);
+                save_trash(is_array($parsed['trash'] ?? null) ? $parsed['trash'] : []);
+                flash(t('Voll-Backup wiederhergestellt (%d Link(s)).', count($bd['links'])), 'success');
+                redirect($self);
+            }
             $imported = is_array($parsed) ? normalize_data($parsed) : csv_to_data($content);
             if (!$imported['links']) {
                 flash(t('Keine gültigen Einträge gefunden (JSON oder CSV erwartet).'));
@@ -1092,6 +1149,28 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
     } elseif ($action === 'audit_clear') {
         save_json(AUDIT_FILE, []);
         flash(t('Protokoll geleert.'), 'success');
+    } elseif ($action === 'linkcheck') {
+        @set_time_limit(120);
+        $res = check_links($data['links']);
+        // Wenn KEINE prüfbare Ziel-Adresse eine echte HTTP-Antwort liefert, hat
+        // vermutlich der Server kein Internet – dann keine falschen „tot"-Marken.
+        $attempted = $real = 0;
+        foreach ($res as $r) {
+            if ((int) ($r['code'] ?? -1) < 0) continue;   // private/unauflösbare Hosts
+            $attempted++;
+            if ((int) $r['code'] >= 100) $real++;
+        }
+        if ($attempted > 0 && $real === 0) {
+            flash(t('Prüfung fehlgeschlagen – der Server konnte keine der Ziel-Adressen erreichen (Internetverbindung?).'));
+        } else {
+            $res['_checked'] = time();
+            save_json(LINKCHECK_FILE, $res);
+            $dead = 0;
+            foreach ($res as $k => $r) if ($k !== '_checked' && link_dead($r)) $dead++;
+            flash($dead > 0 ? t('%d Link(s) geprüft – %d nicht erreichbar.', count($data['links']), $dead)
+                            : t('%d Link(s) geprüft – alle erreichbar.', count($data['links'])),
+                  $dead > 0 ? 'info' : 'success');
+        }
     } elseif ($action === 'totp_disable') {
         if (!password_verify((string) ($_POST['current'] ?? ''), $passwordHash)) {
             flash(t('Aktuelles Passwort ist falsch.'));
@@ -1152,6 +1231,7 @@ $links     = $data['links'];
 $groups    = $data['groups'];
 $clicks    = load_clicks();
 $trash     = load_trash();
+$GLOBALS['linkcheck'] = load_json(LINKCHECK_FILE);   // von render_table gelesen
 $csrf      = csrf_token();
 $editing   = isset($_GET['edit'])      ? clean_slug((string) $_GET['edit'])       : null;
 $editgroup = isset($_GET['editgroup']) ? clean_group((string) $_GET['editgroup']) : null;
@@ -1467,6 +1547,7 @@ foreach ($links as $s => $l) { $k = $normUrl((string) $l['url']); if ($k !== '' 
   <summary><?= icon('download') ?><?= t('Export / Import') ?></summary>
   <p class="toolbtns">
     <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?export=1"><?= icon('download') ?><?= t('Export – JSON herunterladen') ?></a>
+    <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?export=full"><?= icon('download') ?><?= t('Voll-Backup (mit Klicks & Papierkorb)') ?></a>
     <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?export=stats"><?= icon('bars') ?><?= t('Klick-Statistik (CSV)') ?></a>
     <?php if ($links): ?><button type="button" id="qrAllZip" class="btn btn--ghost btn--small"><?= icon('qr') ?><?= t('Alle QR-Codes (ZIP)') ?></button><?php endif; ?>
   </p>
@@ -1708,6 +1789,14 @@ $diagChecks = [
     </tr>
   </table>
   <p class="muted"><?= t('Die letzten beiden Prüfungen laufen beim Öffnen dieses Bereichs direkt im Browser.') ?></p>
+  <?php if ($links): $lcAt = (int) ($GLOBALS['linkcheck']['_checked'] ?? 0); ?>
+  <form class="bar bar--end" method="post">
+    <input type="hidden" name="action" value="linkcheck">
+    <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
+    <button class="btn btn--ghost btn--small"><?= icon('search') ?><?= t('Ziel-Links auf Erreichbarkeit prüfen') ?></button>
+    <span class="muted"><?= $lcAt ? t('zuletzt %s', date('d.m.Y H:i', $lcAt)) : t('noch nie geprüft') ?></span>
+  </form>
+  <?php endif; ?>
 </details>
 
 <?php

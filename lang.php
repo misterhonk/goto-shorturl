@@ -195,6 +195,18 @@ return [
     // Workflow
     'Kopieren'                           => 'Copy',
 
+    // Voll-Backup & Toter-Link-Check
+    'Voll-Backup (mit Klicks & Papierkorb)' => 'Full backup (with clicks & trash)',
+    'Voll-Backup wiederhergestellt (%d Link(s)).' => 'Full backup restored (%d link(s)).',
+    'toter Link'                         => 'dead link',
+    'Ziel nicht erreichbar (letzte Prüfung)' => 'Destination unreachable (last check)',
+    'Ziel-Links auf Erreichbarkeit prüfen' => 'Check destination links',
+    'noch nie geprüft'                   => 'never checked',
+    '%d Link(s) geprüft – %d nicht erreichbar.' => '%d link(s) checked – %d unreachable.',
+    '%d Link(s) geprüft – alle erreichbar.' => '%d link(s) checked – all reachable.',
+    'Prüfung fehlgeschlagen – der Server konnte keine der Ziel-Adressen erreichen (Internetverbindung?).'
+        => 'Check failed – the server could not reach any destination (no internet connection?).',
+
     // 2FA-Wiederherstellungs-Codes
     'Mit Wiederherstellungs-Code angemeldet. Noch %d Code(s) übrig.'
         => 'Signed in with a recovery code. %d code(s) remaining.',
