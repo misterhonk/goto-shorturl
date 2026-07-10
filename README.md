@@ -40,7 +40,10 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
   wahlweise **Weiterleitung auf eine Ersatz-URL** statt der 410-Seite)
 - **Titel-Autofill**: Knopf holt den `<title>` der Zielseite (opt-in, SSRF-geschützt)
 - **Duplikat-Hinweis** beim Anlegen, wenn die Ziel-URL schon existiert
-- **Geräte-Verwaltung**: aktive „Angemeldet bleiben"-Geräte einsehen und abmelden
+- **Zwei-Faktor-Authentifizierung (TOTP)** fürs Admin, inkl. einmaliger
+  **Wiederherstellungs-Codes**; **Geräte-Verwaltung** für „Angemeldet
+  bleiben"-Geräte (einsehen und abmelden)
+- **Aktivitäts-Protokoll** (Anmeldungen, Änderungen; keine IP-Adressen)
 - **Update-Hinweis** in der Diagnose (opt-in, prüft die neueste GitHub-Version)
 - **Passwortgeschützte Links**: optional je Link ein Passwort – Besucher sehen
   erst eine Passwort-Seite, dann die Weiterleitung (bcrypt, mit Brute-Force-Sperre)
@@ -51,10 +54,13 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 - **Tages-Backups**: automatisch beim ersten Speichern des Tages
   (`backups/`, 7 Generationen) zusätzlich zur `.bak`-Sicherung
 - **Diagnose** im Admin: Ampel-Selbsttest (Schreibrechte, PHP, Rewrite,
-  Dateischutz, HTTPS, Backups) – praktisch nach dem Deployment
-- **Live-Suche**, **Bulk-Aktionen** (verschieben / löschen / Zähler zurücksetzen)
-- **Import / Export** als JSON
-- **HTTP-API** zum Anlegen von Links per Skript, abgesichert über **API-Token**
+  Dateischutz, HTTPS, Backups) und **Toter-Link-Prüfung** aller Ziele
+- **Live-Suche**, **Sortieren/Filtern** (gemerkt), **einklappbare Gruppen**,
+  **Bulk-Aktionen**, Tastatur-Shortcuts (`/` Suche, `n` neuer Link)
+- **Import / Export** als JSON, **CSV-Import**, **Voll-Backup** (mit Klicks &
+  Papierkorb) für den Server-Umzug
+- **HTTP-API (CRUD)** zum Anlegen, Auslesen, Ändern und Löschen von Links per
+  Skript, abgesichert über **API-Token**
 - **Social-Media-Vorschau**: beim Teilen eines Kurzlinks (WhatsApp, Slack, …)
   zeigt die Vorschau den **Titel aus dem Eintrag** samt GOTO-Vorschaubild
 - **Favicon & Theme-Color** im Marken-Design, gestaltete 404/410-Seiten
@@ -83,7 +89,10 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 | `.ht_attempts.json` | Login-Fehlversuche (Rate-Limiting) *(automatisch)* |
 | `.ht_tokens.json` | „Angemeldet bleiben"-Token, nur gehasht *(automatisch)* |
 | `.ht_apitokens.json` | API-Token, nur gehasht *(automatisch)* |
-| `.ht_auth.json` | Passwort-Hash (vom Setup gesetzt) *(automatisch)* |
+| `.ht_auth.json` | Passwort-Hash, 2FA-Secret & Recovery-Hashes *(automatisch)* |
+| `.ht_audit.json` | Aktivitäts-Protokoll *(automatisch)* |
+| `.ht_linkcheck.json` | Ergebnisse der Toter-Link-Prüfung *(automatisch)* |
+| `backups/` | Tägliche `urls.json`-Sicherungen, 7 Generationen *(automatisch)* |
 
 Es wird **keine Datenbank** benötigt — alle Daten liegen in JSON-Dateien.
 

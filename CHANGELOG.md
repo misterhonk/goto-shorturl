@@ -5,6 +5,13 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+## [1.0.0] – 2026-07-10
+
+Erste stabile Version. GOTO ist ein vollständiger, datenbankloser
+URL-Shortener & QR-Generator mit Admin-UI im Apple-Look, CRUD-API, 2FA,
+Statistik und Server-Support für Apache/nginx/Caddy. Aktualisierter
+Screenshot; README/QUICKSTART auf den aktuellen Stand gebracht.
+
 ### Hinzugefügt
 - **Kopier-Knopf im „angelegt"-Toast:** nach dem Anlegen eines Links steht der
   Kurzlink direkt zum Kopieren im Toast (bleibt länger stehen).
@@ -245,7 +252,8 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
   Drag & Drop, Live-Suche sowie Import/Export.
 - Datenbanklos – alle Daten in JSON-Dateien.
 
-[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.9.0...v1.0.0
 [0.9.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/misterhonk/goto-shorturl/compare/v0.7.0...v0.7.1
