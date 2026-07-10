@@ -148,6 +148,11 @@
     var secs=Array.prototype.slice.call(document.querySelectorAll('section.group[data-group]'));
     var nores=document.getElementById('noresults');
     var num=function(r,a){ return parseInt(r.getAttribute(a),10)||0; };
+    // Sortier- und Filter-Auswahl pro Browser merken
+    function ls(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+    function lset(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+    if(sortSel){ var sv=ls('goto-sort'); if(sv) sortSel.value=sv; }
+    if(filterSel){ var fv=ls('goto-filter'); if(fv) filterSel.value=fv; }
     function applyView(){
       var q=(search.value||'').trim().toLowerCase();
       var sort=sortSel?sortSel.value:'new';
@@ -175,10 +180,34 @@
       if(nores) nores.hidden=any||(q===''&&filter==='all');
     }
     search.addEventListener('input',applyView);
-    if(sortSel) sortSel.addEventListener('change',applyView);
-    if(filterSel) filterSel.addEventListener('change',applyView);
+    if(sortSel) sortSel.addEventListener('change',function(){ lset('goto-sort',sortSel.value); applyView(); });
+    if(filterSel) filterSel.addEventListener('change',function(){ lset('goto-filter',filterSel.value); applyView(); });
     applyView();
   }
+
+  // Tastatur-Shortcuts: „/" fokussiert die Suche, „n" das URL-Feld
+  document.addEventListener('keydown',function(e){
+    if(e.ctrlKey||e.metaKey||e.altKey) return;
+    var el=document.activeElement, tag=el&&el.tagName;
+    if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||(el&&el.isContentEditable)) return;
+    if(document.querySelector('dialog[open]')) return;
+    if(e.key==='/'){ var s=document.getElementById('search'); if(s){ e.preventDefault(); s.focus(); } }
+    else if(e.key==='n'){ var u=document.querySelector('#addform input[name=url]'); if(u){ e.preventDefault(); u.focus(); } }
+  });
+
+  // Gruppen einklappen (Zustand pro Gruppe gemerkt)
+  document.querySelectorAll('section.group[data-group] .group-head h2').forEach(function(h2){
+    var sec=h2.closest('section.group'), name=sec.getAttribute('data-group');
+    if(h2.querySelector('input')) return;   // aktives Umbenennen nicht als Collapser
+    var key='goto-grp-'+name;
+    h2.classList.add('collapser');
+    try{ if(localStorage.getItem(key)==='1') sec.classList.add('collapsed'); }catch(e){}
+    h2.addEventListener('click',function(ev){
+      if(ev.target.closest('a,button,input,form')) return;
+      sec.classList.toggle('collapsed');
+      try{ localStorage.setItem(key, sec.classList.contains('collapsed')?'1':'0'); }catch(e){}
+    });
+  });
 
   // Drag & Drop zwischen Gruppen
   var dnd=document.getElementById('dndform');
@@ -205,13 +234,18 @@
     });
   }
 
-  // Toasts
+  // Toasts (Toasts mit Kopier-Knopf bleiben länger stehen und werden nicht
+  // durch einen Klick auf den Knopf geschlossen)
   var tc=document.getElementById('toasts');
   if(tc){
     Array.prototype.slice.call(tc.children).forEach(function(t,i){
       requestAnimationFrame(function(){ t.classList.add('toast--in'); });
-      var to=setTimeout(function(){ hideToast(t); }, 4200+i*250);
-      t.addEventListener('click',function(){ clearTimeout(to); hideToast(t); });
+      var hasCopy=t.querySelector('.toast-copy');
+      var to=setTimeout(function(){ hideToast(t); }, (hasCopy?9000:4200)+i*250);
+      t.addEventListener('click',function(e){
+        if(e.target.closest('.toast-copy')) return;   // Kopieren dismisst nicht
+        clearTimeout(to); hideToast(t);
+      });
     });
   }
   function hideToast(t){ t.classList.add('toast--out'); setTimeout(function(){ if(t.parentNode) t.remove(); },350); }

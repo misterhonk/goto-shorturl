@@ -5,6 +5,24 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+### Hinzugefügt
+- **Kopier-Knopf im „angelegt"-Toast:** nach dem Anlegen eines Links steht der
+  Kurzlink direkt zum Kopieren im Toast (bleibt länger stehen).
+- **Tastatur-Shortcuts:** `/` fokussiert die Suche, `n` das URL-Feld.
+- **Einklappbare Gruppen** (Zustand pro Gruppe gemerkt); Sortierung und Filter
+  werden ebenfalls pro Browser gemerkt.
+- **2FA-Wiederherstellungs-Codes:** bei der Einrichtung werden 8 Einmal-Codes
+  erzeugt (nur gehasht gespeichert, einmalig angezeigt) – Login klappt damit
+  auch ohne Authenticator-Gerät. Rest-Anzahl sichtbar, neu erzeugbar; „Handy
+  verloren" braucht keine FTP-Chirurgie mehr.
+- **Aktivitäts-Protokoll:** die letzten ~100 Ereignisse (Anmeldungen inkl.
+  Fehlversuche, Link-/Gruppen-/Token-/Geräte-/2FA-Änderungen) mit Zeit und
+  Geräte-Kennung, einsehbar und leerbar in der Toolbox. DSGVO-sparsam – **keine
+  IP-Adressen**.
+
+### Geändert
+- Toast- und Bulkbar-Animationen respektieren jetzt `prefers-reduced-motion`.
+
 ## [0.9.0] – 2026-07-09
 
 ### Hinzugefügt

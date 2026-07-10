@@ -172,6 +172,13 @@ input[type=checkbox]{accent-color:var(--blue)}
 .group-actions{display:flex;gap:.35rem;align-items:center;opacity:0;transition:opacity .18s}
 .group:hover .group-actions,.group:focus-within .group-actions{opacity:1}
 @media (hover:none){.group-actions{opacity:1}}
+/* Einklappbare Gruppen */
+.group-head h2.collapser{cursor:pointer;user-select:none}
+.group-head h2.collapser::before{content:"⌄";display:inline-block;margin-right:.15rem;
+     color:var(--muted);transition:transform .15s;font-size:.9em}
+.group.collapsed .group-head h2.collapser::before{transform:rotate(-90deg)}
+.group.collapsed table,.group.collapsed .empty{display:none}
+.group.collapsed{padding-bottom:.9rem}
 
 /* Linkliste: „inset grouped list" mit Hairlines */
 table{width:100%;border-collapse:collapse;margin-top:.35rem}
@@ -291,6 +298,9 @@ input.invalid:focus{box-shadow:0 0 0 4px rgba(255,59,48,.18)}
 .trashlist td{padding:.45rem .5rem;border-top:1px solid var(--line);vertical-align:middle}
 .trashlist tr:first-child td{border-top:0}
 .slugmono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:.83rem;color:var(--blue)}
+.reccodes{font-size:1rem;letter-spacing:.05em;line-height:1.7;margin:.4rem 0 .6rem;resize:none}
+.auditlog td{font-size:.82rem}
+.auditlog{max-height:22rem;overflow-y:auto;display:block}
 .nowrap{white-space:nowrap}
 
 /* 2FA-Einrichtung */
@@ -326,6 +336,15 @@ section.group.dropok{outline:2px dashed var(--blue);outline-offset:3px}
 .toast--success{background:var(--ok-bg);color:var(--ok-fg);border-color:var(--ok-line)}
 .toast--error{background:var(--err-bg);color:var(--err-fg);border-color:var(--err-line)}
 .toast--info{background:var(--info-bg);color:var(--info-fg);border-color:var(--info-line)}
+.toast--wide{display:flex;align-items:center;gap:.75rem;justify-content:space-between}
+.toast-copy{font:inherit;font-size:.8rem;font-weight:600;cursor:pointer;white-space:nowrap;
+     display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .6rem;border-radius:999px;
+     border:1px solid currentColor;background:transparent;color:inherit;flex:0 0 auto}
+.toast-copy:hover{background:rgba(255,255,255,.35)}
+.toast-copy.ok{opacity:.7}
+@media (prefers-reduced-motion:reduce){
+  .toast{transition:none}.bulkbar.on{animation:none}
+}
 
 /* Dialoge */
 dialog.qrdlg{border:none;border-radius:20px;padding:0;width:min(560px,94vw);

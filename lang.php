@@ -192,6 +192,57 @@ return [
     'aktuell'                            => 'up to date',
     'Version %s verfügbar'               => 'version %s available',
 
+    // Workflow
+    'Kopieren'                           => 'Copy',
+
+    // 2FA-Wiederherstellungs-Codes
+    'Mit Wiederherstellungs-Code angemeldet. Noch %d Code(s) übrig.'
+        => 'Signed in with a recovery code. %d code(s) remaining.',
+    'Kein Zugriff? Nutze einen Wiederherstellungs-Code.'
+        => 'No access? Use a recovery code instead.',
+    'Bewahre diese Wiederherstellungs-Codes sicher auf – jeder funktioniert einmal, wenn du keinen App-Code hast. Sie werden nur jetzt angezeigt.'
+        => 'Keep these recovery codes safe – each works once when you have no app code. They are shown only now.',
+    'Codes kopieren'                     => 'Copy codes',
+    'Wiederherstellungs-Codes übrig: %d.' => 'Recovery codes left: %d.',
+    'Codes neu erzeugen'                 => 'Regenerate codes',
+    'Neue Codes erzeugen? Die bisherigen werden ungültig.'
+        => 'Generate new codes? The current ones become invalid.',
+    'Neue Wiederherstellungs-Codes erzeugt – die alten sind ungültig.'
+        => 'New recovery codes generated – the old ones are now invalid.',
+    '2FA ist nicht aktiv.'               => '2FA is not active.',
+
+    // Audit-Protokoll
+    'Protokoll'                          => 'Activity log',
+    'Die letzten Ereignisse (Anmeldungen, Änderungen). Nur Ereignis, Zeit und Geräte-Kennung – keine IP-Adressen.'
+        => 'Recent events (sign-ins, changes). Only event, time and device label – no IP addresses.',
+    'Protokoll wirklich leeren?'         => 'Really clear the activity log?',
+    'Protokoll leeren'                   => 'Clear log',
+    'Protokoll geleert.'                 => 'Activity log cleared.',
+    'Anmeldung'                          => 'Sign-in',
+    'Fehlgeschlagene Anmeldung'          => 'Failed sign-in',
+    'Anmeldung per Wiederherstellungs-Code' => 'Sign-in via recovery code',
+    'Falscher 2FA-Code'                  => 'Wrong 2FA code',
+    'Abmeldung'                          => 'Sign-out',
+    'Passwort eingerichtet'              => 'Password set up',
+    'Link angelegt'                      => 'Link created',
+    'Link geändert'                      => 'Link changed',
+    'Link gelöscht'                      => 'Link deleted',
+    'Sammel-Aktion'                      => 'Bulk action',
+    'Wiederhergestellt'                  => 'Restored',
+    'Endgültig gelöscht'                 => 'Permanently deleted',
+    'Import'                             => 'Import',
+    'Gruppe angelegt'                    => 'Group created',
+    'Gruppe umbenannt'                   => 'Group renamed',
+    'Gruppe gelöscht'                    => 'Group deleted',
+    'Passwort geändert'                  => 'Password changed',
+    'API-Token erstellt'                 => 'API token created',
+    'API-Token widerrufen'               => 'API token revoked',
+    'Gerät abgemeldet'                   => 'Device signed out',
+    'Andere Geräte abgemeldet'           => 'Other devices signed out',
+    '2FA aktiviert'                      => '2FA enabled',
+    '2FA deaktiviert'                    => '2FA disabled',
+    'Recovery-Codes erneuert'            => 'Recovery codes renewed',
+
     // Werkzeugkasten & Empty-State
     'Einstellungen & Werkzeuge'          => 'Settings & tools',
     'Füge oben deine erste Ziel-URL ein – ein Kürzel wird automatisch erzeugt.'

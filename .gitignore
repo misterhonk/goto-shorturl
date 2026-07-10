@@ -6,6 +6,7 @@ backups/
 .ht_tokens.json
 .ht_apitokens.json
 .ht_auth.json
+.ht_audit.json
 .ht_trash.json
 .ht_error.log
 *.bak

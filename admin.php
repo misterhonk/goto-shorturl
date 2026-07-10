@@ -15,6 +15,7 @@ require __DIR__ . '/lib.php';   // Bootstrap ($cfg, $dataDir, Konstanten) + Helf
 define('ATTEMPTS_FILE', $dataDir . '/.ht_attempts.json');
 define('TOKENS_FILE',   $dataDir . '/.ht_tokens.json');
 define('AUTH_FILE',     $dataDir . '/.ht_auth.json');
+define('AUDIT_FILE',    $dataDir . '/.ht_audit.json');
 define('SHOW_FAVICONS', (bool) ($cfg['favicons'] ?? true));
 define('TITLE_FETCH',   (bool) ($cfg['title_fetch'] ?? true));
 define('UPDATE_CHECK',  (bool) ($cfg['update_check'] ?? false));
@@ -135,10 +136,44 @@ function totp_verify(string $secret, string $code): bool {
     return false;
 }
 
+// Wiederherstellungs-Codes: Einmal-Codes als Ersatz fürs Authenticator-Gerät.
+// Gespeichert werden nur SHA-256-Hashes; ein genutzter Code wird verbraucht.
+function recovery_generate(int $n = 8): array {
+    $disp = []; $hash = [];
+    for ($i = 0; $i < $n; $i++) {
+        $raw    = strtolower(bin2hex(random_bytes(5)));   // 10 Hex-Zeichen
+        $disp[] = substr($raw, 0, 5) . '-' . substr($raw, 5);
+        $hash[] = hash('sha256', $raw);
+    }
+    return ['display' => $disp, 'hashes' => $hash];
+}
+function recovery_consume(string $code): bool {
+    $norm = strtolower(preg_replace('/[^a-z0-9]/i', '', $code) ?? '');
+    if ($norm === '') return false;
+    $a     = load_json(AUTH_FILE);
+    $codes = (array) ($a['totp_recovery'] ?? []);
+    $idx   = array_search(hash('sha256', $norm), $codes, true);
+    if ($idx === false) return false;
+    unset($codes[$idx]);
+    $a['totp_recovery'] = array_values($codes);
+    save_json(AUTH_FILE, $a);
+    return true;
+}
+
 /* ---- Flash / Redirect / CSRF -------------------------------------- */
 
-function flash(string $msg, string $type = 'error'): void {
-    $_SESSION['flash'] = ['msg' => $msg, 'type' => $type];
+function flash(string $msg, string $type = 'error', string $copy = ''): void {
+    $_SESSION['flash'] = ['msg' => $msg, 'type' => $type, 'copy' => $copy];
+}
+
+/* ---- Audit-Log (Ring-Puffer, DSGVO-sparsam: kein IP, nur Geräte-Label) --- */
+function audit(string $ev, string $detail = ''): void {
+    $log = load_json(AUDIT_FILE);
+    if (!isset($log[0]) && $log) $log = [];   // nur Listen
+    $log[] = ['t' => time(), 'ev' => $ev, 'd' => $detail,
+              'ua' => ua_label((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''))];
+    if (count($log) > 200) $log = array_slice($log, -200);
+    save_json(AUDIT_FILE, $log);
 }
 function redirect(string $to): void { header('Location: ' . $to); exit; }
 
@@ -342,10 +377,36 @@ function foot(string $nonce): void {
 </html>
 <?php }
 
+// Menschliche Beschriftung eines Audit-Ereignisses (Fallback: Rohcode)
+function ev_label(string $ev): string {
+    $map = [
+        'login' => t('Anmeldung'), 'login_fail' => t('Fehlgeschlagene Anmeldung'),
+        'login_recovery' => t('Anmeldung per Wiederherstellungs-Code'),
+        'totp_fail' => t('Falscher 2FA-Code'), 'logout' => t('Abmeldung'),
+        'setup' => t('Passwort eingerichtet'),
+        'act:add' => t('Link angelegt'), 'act:update' => t('Link geändert'),
+        'act:delete' => t('Link gelöscht'), 'act:bulk' => t('Sammel-Aktion'),
+        'act:restore' => t('Wiederhergestellt'), 'act:trash_delete' => t('Endgültig gelöscht'),
+        'act:trash_empty' => t('Papierkorb geleert'), 'act:import' => t('Import'),
+        'act:group_add' => t('Gruppe angelegt'), 'act:group_rename' => t('Gruppe umbenannt'),
+        'act:group_delete' => t('Gruppe gelöscht'), 'act:change_password' => t('Passwort geändert'),
+        'act:token_create' => t('API-Token erstellt'), 'act:token_revoke' => t('API-Token widerrufen'),
+        'act:device_revoke' => t('Gerät abgemeldet'), 'act:device_revoke_others' => t('Andere Geräte abgemeldet'),
+        'act:totp_enable' => t('2FA aktiviert'), 'act:totp_disable' => t('2FA deaktiviert'),
+        'act:recovery_regen' => t('Recovery-Codes erneuert'),
+    ];
+    return $map[$ev] ?? $ev;
+}
+
 function render_toasts(array $toasts): void {
     echo '<div id="toasts" class="toasts" aria-live="polite">';
     foreach ($toasts as $t) {
-        echo '<div class="toast toast--' . e($t['type']) . '">' . e($t['msg']) . '</div>';
+        $copy = (string) ($t['copy'] ?? '');
+        echo '<div class="toast toast--' . e($t['type']) . ($copy !== '' ? ' toast--wide' : '') . '">'
+           . '<span>' . e($t['msg']) . '</span>'
+           . ($copy !== '' ? '<button type="button" class="toast-copy" data-copy="' . e($copy) . '">'
+               . icon('copy') . t('Kopieren') . '</button>' : '')
+           . '</div>';
     }
     echo '</div>';
 }
@@ -523,6 +584,7 @@ if ($passwordHash === '') {
         }
         $hash = password_hash($pw, PASSWORD_DEFAULT);
         if (save_hash($hash)) {
+            audit('setup');
             flash(t('Passwort gespeichert – du kannst dich jetzt anmelden.'), 'success');
             redirect($self);
         }
@@ -563,6 +625,7 @@ if ($passwordHash === '') {
  * ================================================================== */
 
 if (isset($_GET['logout'])) {
+    if (!empty($_SESSION['auth'])) audit('logout');
     remember_forget($cookieDir, $https);
     $_SESSION = [];
     if (ini_get('session.use_cookies')) {
@@ -620,22 +683,26 @@ if (!$loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST[
         $_SESSION['seen'] = time();
         csrf_token();
         if (!empty($_POST['remember'])) remember_set($cookieDir, $https);
+        audit('login');
         redirect($self);
     } else {
         register_fail($clientKey, $maxAttempts, $lockoutSeconds);
+        audit('login_fail');
         usleep(300000);
         $loginError = t('Falsches Passwort.');
     }
 }
 
-// Zweiter Schritt: TOTP-Code nach korrektem Passwort
+// Zweiter Schritt: TOTP-Code (oder Wiederherstellungs-Code) nach korrektem Passwort
 if (!$loggedIn && !empty($_SESSION['totp_pending'])
     && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['totpcode'])) {
     $wait = lock_remaining($clientKey);
     $secret = (string) (load_json(AUTH_FILE)['totp'] ?? '');
+    $code   = (string) $_POST['totpcode'];
+    $viaRecovery = false;
     if ($wait > 0) {
         $loginError = t('Zu viele Fehlversuche. Bitte %d Min. warten.', (int) ceil($wait / 60));
-    } elseif ($secret !== '' && totp_verify($secret, (string) $_POST['totpcode'])) {
+    } elseif (($secret !== '' && totp_verify($secret, $code)) || ($viaRecovery = recovery_consume($code))) {
         session_regenerate_id(true);
         $_SESSION['auth'] = true;
         $_SESSION['seen'] = time();
@@ -643,9 +710,15 @@ if (!$loggedIn && !empty($_SESSION['totp_pending'])
         clear_fails($clientKey);
         if (!empty($_SESSION['totp_remember'])) remember_set($cookieDir, $https);
         unset($_SESSION['totp_pending'], $_SESSION['totp_remember']);
+        audit($viaRecovery ? 'login_recovery' : 'login');
+        if ($viaRecovery) {
+            $rem = count((array) (load_json(AUTH_FILE)['totp_recovery'] ?? []));
+            flash(t('Mit Wiederherstellungs-Code angemeldet. Noch %d Code(s) übrig.', $rem), 'info');
+        }
         redirect($self);
     } else {
         register_fail($clientKey, $maxAttempts, $lockoutSeconds);
+        audit('totp_fail');
         usleep(300000);
         $loginError = t('Falscher Code.');
     }
@@ -749,6 +822,12 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
     $data   = load_data();
     $action = (string) $_POST['action'];
     $slug   = clean_slug((string) ($_POST['slug'] ?? ''));
+    // Sicherheits-/Datenrelevante Aktionen protokollieren (nicht das häufige „move")
+    if (!in_array($action, ['move', 'audit_clear'], true)) {
+        $adetail = $slug !== '' ? $slug
+                 : clean_text((string) ($_POST['name'] ?? $_POST['group_name'] ?? $_POST['group'] ?? ''), 40);
+        audit('act:' . $action, $adetail);
+    }
     $url    = trim((string) ($_POST['url'] ?? ''));
     $group  = clean_group((string) ($_POST['group'] ?? ''));
     $title  = clean_title((string) ($_POST['title'] ?? ''));
@@ -773,7 +852,7 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
                     'pass' => ($linkpw !== '') ? password_hash($linkpw, PASSWORD_DEFAULT) : '',
                     'preview' => !empty($_POST['preview']), 'expires_url' => $expUrl];
                 save_data($data)
-                    ? flash(t('„%s“ angelegt.', $slug), 'success')
+                    ? flash(t('„%s“ angelegt.', $slug), 'success', $base . $slug)
                     : flash(t('Konnte nicht speichern – Schreibrechte für urls.json prüfen.'));
             }
         }
@@ -987,19 +1066,38 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
         } elseif (!totp_verify($sec, (string) ($_POST['code'] ?? ''))) {
             flash(t('Falscher Code.'));
         } else {
+            $rc = recovery_generate();
             $a = load_json(AUTH_FILE);
             $a['totp'] = $sec;
-            save_json(AUTH_FILE, $a)
-                ? flash(t('Zwei-Faktor-Authentifizierung aktiviert.'), 'success')
-                : flash(t('Konnte nicht speichern – Schreibrechte prüfen.'));
+            $a['totp_recovery'] = $rc['hashes'];
+            if (save_json(AUTH_FILE, $a)) {
+                $_SESSION['recovery_show'] = $rc['display'];   // einmalig anzeigen
+                flash(t('Zwei-Faktor-Authentifizierung aktiviert.'), 'success');
+            } else {
+                flash(t('Konnte nicht speichern – Schreibrechte prüfen.'));
+            }
             unset($_SESSION['totp_new']);
         }
+    } elseif ($action === 'recovery_regen') {
+        $a = load_json(AUTH_FILE);
+        if ((string) ($a['totp'] ?? '') === '') {
+            flash(t('2FA ist nicht aktiv.'));
+        } else {
+            $rc = recovery_generate();
+            $a['totp_recovery'] = $rc['hashes'];
+            save_json(AUTH_FILE, $a);
+            $_SESSION['recovery_show'] = $rc['display'];
+            flash(t('Neue Wiederherstellungs-Codes erzeugt – die alten sind ungültig.'), 'success');
+        }
+    } elseif ($action === 'audit_clear') {
+        save_json(AUDIT_FILE, []);
+        flash(t('Protokoll geleert.'), 'success');
     } elseif ($action === 'totp_disable') {
         if (!password_verify((string) ($_POST['current'] ?? ''), $passwordHash)) {
             flash(t('Aktuelles Passwort ist falsch.'));
         } else {
             $a = load_json(AUTH_FILE);
-            unset($a['totp']);
+            unset($a['totp'], $a['totp_recovery']);
             save_json(AUTH_FILE, $a);
             flash(t('Zwei-Faktor-Authentifizierung deaktiviert.'), 'success');
         }
@@ -1027,9 +1125,9 @@ if (!$loggedIn) {
       <?php if (!empty($_SESSION['totp_pending'])): ?>
       <form class="card authcard" method="post" autocomplete="off">
         <label><?= t('Sicherheits-Code aus der Authenticator-App') ?></label>
-        <input type="text" name="totpcode" inputmode="numeric" autocomplete="one-time-code" maxlength="7" autofocus required>
+        <input type="text" name="totpcode" inputmode="text" autocomplete="one-time-code" maxlength="13" autofocus required>
         <button class="btn btn--primary"><?= icon('lock') ?><?= t('Bestätigen') ?></button>
-        <p class="muted logincancel"><a href="<?= e($self) ?>?logout"><?= t('Zurück zur Anmeldung') ?></a></p>
+        <p class="muted logincancel"><?= t('Kein Zugriff? Nutze einen Wiederherstellungs-Code.') ?><br><a href="<?= e($self) ?>?logout"><?= t('Zurück zur Anmeldung') ?></a></p>
       </form>
       <?php else: ?>
       <form class="card authcard" method="post" autocomplete="off">
@@ -1403,13 +1501,23 @@ foreach ($links as $s => $l) { $k = $normUrl((string) $l['url']); if ($k !== '' 
 <?php endif; ?>
 
 <?php
-$totpSecret       = (string) (load_json(AUTH_FILE)['totp'] ?? '');
+$totpAuth         = load_json(AUTH_FILE);
+$totpSecret       = (string) ($totpAuth['totp'] ?? '');
 $totpPendingSetup = (string) ($_SESSION['totp_new'] ?? '');
+$recoveryShow     = (array) ($_SESSION['recovery_show'] ?? []);
+$recoveryLeft     = count((array) ($totpAuth['totp_recovery'] ?? []));
+unset($_SESSION['recovery_show']);
 ?>
-<details class="tools"<?= $totpPendingSetup !== '' ? ' open' : '' ?>>
+<details class="tools"<?= ($totpPendingSetup !== '' || $recoveryShow) ? ' open' : '' ?>>
   <summary><?= icon('shield') ?><?= t('Zwei-Faktor-Authentifizierung (2FA)') ?><?php if ($totpSecret !== ''): ?> <span class="count">✓</span><?php endif; ?></summary>
+  <?php if ($recoveryShow): ?>
+    <div class="flash info"><?= t('Bewahre diese Wiederherstellungs-Codes sicher auf – jeder funktioniert einmal, wenn du keinen App-Code hast. Sie werden nur jetzt angezeigt.') ?></div>
+    <textarea class="hashbox reccodes" rows="<?= count($recoveryShow) ?>" readonly><?php echo e(implode("\n", $recoveryShow)); ?></textarea>
+    <button type="button" class="btn btn--ghost btn--small" data-copy="<?= e(implode(' ', $recoveryShow)) ?>"><?= icon('copy') ?><?= t('Codes kopieren') ?></button>
+  <?php endif; ?>
   <?php if ($totpSecret !== ''): ?>
-    <p class="muted"><?= t('2FA ist aktiv. Beim Anmelden wird zusätzlich ein Code aus deiner Authenticator-App abgefragt. „Angemeldet bleiben“-Geräte überspringen die Abfrage.') ?></p>
+    <p class="muted"><?= t('2FA ist aktiv. Beim Anmelden wird zusätzlich ein Code aus deiner Authenticator-App abgefragt. „Angemeldet bleiben“-Geräte überspringen die Abfrage.') ?>
+       <?= t('Wiederherstellungs-Codes übrig: %d.', $recoveryLeft) ?></p>
     <form class="bar bar--end" method="post" autocomplete="off">
       <input type="hidden" name="action" value="totp_disable">
       <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
@@ -1418,6 +1526,11 @@ $totpPendingSetup = (string) ($_SESSION['totp_new'] ?? '');
         <input type="password" name="current" autocomplete="current-password" required>
       </label>
       <button class="btn btn--danger"><?= t('2FA deaktivieren') ?></button>
+    </form>
+    <form class="inline" method="post" data-confirm="<?= e(t('Neue Codes erzeugen? Die bisherigen werden ungültig.')) ?>">
+      <input type="hidden" name="action" value="recovery_regen">
+      <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
+      <button class="btn btn--ghost btn--small"><?= icon('undo') ?><?= t('Codes neu erzeugen') ?></button>
     </form>
   <?php elseif ($totpPendingSetup !== ''):
       $totpUri = 'otpauth://totp/' . rawurlencode('GOTO (' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . ')')
@@ -1596,6 +1709,31 @@ $diagChecks = [
   </table>
   <p class="muted"><?= t('Die letzten beiden Prüfungen laufen beim Öffnen dieses Bereichs direkt im Browser.') ?></p>
 </details>
+
+<?php
+$auditLog = load_json(AUDIT_FILE);
+if ($auditLog):
+    $auditLog = array_reverse(array_slice($auditLog, -100));
+?>
+<details class="tools">
+  <summary><?= icon('bars') ?><?= t('Protokoll') ?> <span class="count"><?= count($auditLog) ?></span></summary>
+  <p class="muted"><?= t('Die letzten Ereignisse (Anmeldungen, Änderungen). Nur Ereignis, Zeit und Geräte-Kennung – keine IP-Adressen.') ?></p>
+  <table class="trashlist auditlog">
+    <?php foreach ($auditLog as $a): ?>
+    <tr>
+      <td class="muted nowrap"><?= e(date('d.m.Y H:i', (int) ($a['t'] ?? 0))) ?></td>
+      <td><?= e(ev_label((string) ($a['ev'] ?? ''))) ?><?php if (($a['d'] ?? '') !== ''): ?> <span class="slugmono"><?= e((string) $a['d']) ?></span><?php endif; ?></td>
+      <td class="muted nowrap"><?= e((string) ($a['ua'] ?? '')) ?></td>
+    </tr>
+    <?php endforeach; ?>
+  </table>
+  <form class="inline" method="post" data-confirm="<?= e(t('Protokoll wirklich leeren?')) ?>">
+    <input type="hidden" name="action" value="audit_clear">
+    <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
+    <button class="btn btn--ghost btn--small"><?= icon('trash') ?><?= t('Protokoll leeren') ?></button>
+  </form>
+</details>
+<?php endif; ?>
 
 <?php if ($trash): ?>
 <details class="tools">
