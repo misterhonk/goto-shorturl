@@ -5,6 +5,8 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+## [1.1.0] – 2026-07-10
+
 ### Hinzugefügt
 - **QR-Code scannen (Reverse-QR):** einen bereits gedruckten GOTO-QR-Code
   fotografieren oder hochladen – GOTO liest den enthaltenen Kurzlink, erkennt
@@ -262,7 +264,8 @@ Screenshot; README/QUICKSTART auf den aktuellen Stand gebracht.
   Drag & Drop, Live-Suche sowie Import/Export.
 - Datenbanklos – alle Daten in JSON-Dateien.
 
-[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/misterhonk/goto-shorturl/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.9.0...v1.0.0
 [0.9.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.7.1...v0.8.0
