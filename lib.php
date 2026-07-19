@@ -18,7 +18,7 @@ declare(strict_types=1);
  *      } } }
  * ------------------------------------------------------------------ */
 
-const GOTO_VERSION = '1.1.0';
+const GOTO_VERSION = '1.1.1';
 
 @ini_set('display_errors', '0');   // Produktion: keine PHP-Fehler an Besucher ausgeben
 

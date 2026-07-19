@@ -5,6 +5,8 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+## [1.1.1] – 2026-07-10
+
 ### Geändert
 - **Mobile-Ansicht überarbeitet:** kompakte Topbar (Untertitel ausgeblendet;
   Sprache als Kürzel `DE`/`EN`, Theme-Umschalter und Abmelden als Icon).
@@ -274,7 +276,8 @@ Screenshot; README/QUICKSTART auf den aktuellen Stand gebracht.
   Drag & Drop, Live-Suche sowie Import/Export.
 - Datenbanklos – alle Daten in JSON-Dateien.
 
-[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/misterhonk/goto-shorturl/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/misterhonk/goto-shorturl/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.9.0...v1.0.0
 [0.9.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.8.0...v0.9.0
