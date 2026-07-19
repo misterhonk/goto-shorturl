@@ -328,7 +328,7 @@ header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: no-referrer');
 header('X-Robots-Tag: noindex, nofollow');
 if ($https) header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
-$imgSrc  = "img-src 'self' data:" . (SHOW_FAVICONS ? ' https://icons.duckduckgo.com' : '');
+$imgSrc  = "img-src 'self' data: blob:" . (SHOW_FAVICONS ? ' https://icons.duckduckgo.com' : '');
 // connect-src wird u. a. für die Diagnose-fetch-Checks benötigt; der
 // Update-Check (opt-in) erlaubt zusätzlich api.github.com.
 $connect = "connect-src 'self'" . ((bool) ($cfg['update_check'] ?? false) ? ' https://api.github.com' : '');
@@ -1375,6 +1375,10 @@ foreach ($links as $s => $l) { $k = $normUrl((string) $l['url']); if ($k !== '' 
       <button class="btn btn--ghost"><?= icon('folder') ?><?= t('Gruppe anlegen') ?></button>
     </form>
   </details>
+  <p class="scanrow">
+    <button type="button" id="scanBtn" class="btn btn--ghost btn--small"><?= icon('qr') ?><?= t('QR-Code scannen') ?></button>
+    <span class="muted"><?= t('Ziel eines bereits gedruckten Codes finden & ändern') ?></span>
+  </p>
 </div>
 
 <?php if ($editing !== null && isset($links[$editing])): ?>
@@ -1474,6 +1478,33 @@ foreach ($links as $s => $l) { $k = $normUrl((string) $l['url']); if ($k !== '' 
 <?php endif; ?>
 
 <?php if ($links): ?><p id="noresults" class="muted empty" hidden><?= t('Keine Treffer für die Suche.') ?></p><?php endif; ?>
+
+<dialog id="scandlg" class="qrdlg scandlg"
+     data-base="<?= e($base) ?>"
+     data-slugs="<?= e(json_encode(array_keys($links), JSON_UNESCAPED_SLASHES)) ?>"
+     data-l-nosupport="<?= e(t('Dieser Browser kann keine QR-Codes lesen. Nutze Chrome/Edge oder ein Handy.')) ?>"
+     data-l-noqr="<?= e(t('Kein QR-Code im Bild erkannt. Versuche ein schärferes/größeres Foto.')) ?>"
+     data-l-found="<?= e(t('Kürzel „%s" gefunden – hier ist der zugehörige Eintrag:')) ?>"
+     data-l-notfound="<?= e(t('Dieser GOTO-Code zeigt auf „%s", aber dazu gibt es (noch) keinen Eintrag.')) ?>"
+     data-l-external="<?= e(t('Der QR-Code enthält diese Adresse:')) ?>"
+     data-l-edit="<?= e(t('Eintrag bearbeiten')) ?>"
+     data-l-createslug="<?= e(t('Mit diesem Kürzel neu anlegen')) ?>"
+     data-l-usetarget="<?= e(t('Als Ziel-URL übernehmen')) ?>"
+     data-self="<?= e($self) ?>">
+  <div class="qrdlg-head">
+    <strong><?= t('QR-Code scannen') ?></strong>
+    <button type="button" class="btn btn--ghost btn--small" id="scanClose"><?= icon('x') ?><?= t('Schließen') ?></button>
+  </div>
+  <div class="clkbody">
+    <p class="muted"><?= t('Lade ein Foto/Bild eines GOTO-QR-Codes hoch – oder scanne ihn am Handy. Das Bild bleibt im Browser, es wird nichts hochgeladen.') ?></p>
+    <label class="btn btn--primary btn--small scanpick">
+      <?= icon('qr') ?><?= t('Bild wählen / Kamera') ?>
+      <input type="file" id="scanFile" accept="image/*" capture="environment" hidden>
+    </label>
+    <div id="scanPreviewWrap" hidden><img id="scanPreview" alt=""></div>
+    <div id="scanResult" class="scanresult" aria-live="polite"></div>
+  </div>
+</dialog>
 
 <dialog id="qrdlg" class="qrdlg">
   <div class="qrdlg-head">

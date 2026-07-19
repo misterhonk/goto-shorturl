@@ -31,6 +31,10 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 - **QR-Codes** pro Link — lokal erzeugt (kein externer Dienst), als **PNG oder SVG**,
   mit einstellbarer Fehlerkorrektur (L/M/Q/H), Größe, Rand, Farben und optionalem
   **Logo in der Mitte** (GOTO-Logo oder eigenes Bild; bleibt im Browser)
+- **QR-Code scannen** (Reverse-QR): einen bereits gedruckten GOTO-QR fotografieren/
+  hochladen → GOTO erkennt das Kürzel und springt direkt ins Bearbeiten des
+  Eintrags (Ziel ändern, ohne den Code neu zu drucken). Dekodierung **lokal im
+  Browser** (native `BarcodeDetector`, kein Upload)
 - **Klick-Zähler** — rein anonym (keine IPs, Zeitstempel oder User-Agents),
   mit **Gesamt-Statistik** über alle Links (Kachel anklicken) und
   **CSV-Export** der Tageswerte,

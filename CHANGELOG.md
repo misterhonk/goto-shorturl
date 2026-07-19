@@ -5,6 +5,15 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+### Hinzugefügt
+- **QR-Code scannen (Reverse-QR):** einen bereits gedruckten GOTO-QR-Code
+  fotografieren oder hochladen – GOTO liest den enthaltenen Kurzlink, erkennt
+  das Kürzel und springt direkt in dessen **Bearbeiten**-Ansicht (Ziel ändern,
+  ohne den Code neu zu drucken). Unbekannte Kürzel lassen sich mit einem Klick
+  neu anlegen, fremde URLs als Ziel übernehmen. Dekodierung läuft **lokal im
+  Browser** (native `BarcodeDetector`), es wird **nichts hochgeladen**; am Handy
+  öffnet die Bildauswahl direkt die Kamera.
+
 ## [1.0.0] – 2026-07-10
 
 Erste stabile Version. GOTO ist ein vollständiger, datenbankloser

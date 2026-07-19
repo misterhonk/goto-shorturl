@@ -352,6 +352,81 @@
     cdlg.addEventListener('click',function(e){ if(e.target===cdlg) cdlg.close(); });
   }
 
+  // QR-Code scannen (Reverse-QR): Bild lokal per BarcodeDetector dekodieren,
+  // GOTO-Kurzlink erkennen und zum passenden Eintrag springen.
+  var scanDlg=document.getElementById('scandlg'), scanBtn=document.getElementById('scanBtn');
+  if(scanDlg&&scanBtn){
+    var sFile=document.getElementById('scanFile'), sRes=document.getElementById('scanResult'),
+        sPrevWrap=document.getElementById('scanPreviewWrap'), sPrev=document.getElementById('scanPreview'),
+        sSelf=scanDlg.getAttribute('data-self')||'',
+        sBase=scanDlg.getAttribute('data-base')||'';
+    var sSlugs=[]; try{ sSlugs=JSON.parse(scanDlg.getAttribute('data-slugs')||'[]'); }catch(_){}
+    function sL(k){ return scanDlg.getAttribute('data-l-'+k)||''; }
+    function esc(s){ var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+    function norm(u){ return String(u).toLowerCase().trim().replace(/^https?:\/\//,'').replace(/^www\./,''); }
+    // Aus einem gescannten Text das GOTO-Kürzel ableiten (oder null)
+    function slugOf(text){
+      var t=norm(text), b=norm(sBase);
+      if(t.indexOf(b)!==0) return null;
+      var rest=text.replace(/^https?:\/\//i,'').replace(/^www\./i,'').slice(b.length);
+      var m=rest.match(/^index\.php\?slug=([^&#]+)/i);   // Rewrite-Variante B
+      if(m) return decodeURIComponent(m[1]).replace(/[^a-z0-9\-]/gi,'').toLowerCase();
+      var seg=rest.split(/[\/?#]/)[0];
+      try{ seg=decodeURIComponent(seg); }catch(_){}
+      return seg.replace(/[^a-z0-9\-]/gi,'').toLowerCase();
+    }
+    function prefillAdd(url,slug){
+      var u=document.querySelector('#addform input[name=url]');
+      if(u&&url){ u.value=url; u.dispatchEvent(new Event('input')); }
+      if(slug){ var so=document.querySelector('#addopts input[name=slug]');
+        var ao=document.getElementById('addopts'); if(ao) ao.open=true;
+        if(so) so.value=slug; }
+      scanDlg.close();
+      var panel=document.querySelector('.panel'); if(panel) panel.scrollIntoView({block:'start'});
+      if(u) u.focus();
+    }
+    function render(text){
+      var slug=slugOf(text);
+      var html='';
+      if(slug && sSlugs.indexOf(slug)>=0){
+        html='<p>'+sL('found').replace('%s',esc(slug))+'</p>'
+           +'<a class="btn btn--primary" href="'+esc(sSelf)+'?edit='+encodeURIComponent(slug)+'">'+sL('edit')+'</a>';
+      } else if(slug){
+        html='<p>'+sL('notfound').replace('%s',esc(slug))+'</p>'
+           +'<button type="button" class="btn btn--primary" data-scan-create="'+esc(slug)+'">'+sL('createslug')+'</button>';
+      } else {
+        var isUrl=/^https?:\/\//i.test(text.trim());
+        html='<p>'+sL('external')+'</p><p class="scancode">'+esc(text)+'</p>'
+           +(isUrl?'<button type="button" class="btn btn--primary" data-scan-target>'+sL('usetarget')+'</button>':'');
+      }
+      sRes.innerHTML=html;
+      var cb=sRes.querySelector('[data-scan-create]');
+      if(cb) cb.addEventListener('click',function(){ prefillAdd('',cb.getAttribute('data-scan-create')); });
+      var tb=sRes.querySelector('[data-scan-target]');
+      if(tb) tb.addEventListener('click',function(){ prefillAdd(text.trim(),''); });
+    }
+    async function decode(file){
+      sRes.textContent='…';
+      if(!('BarcodeDetector' in window)){ sRes.textContent=sL('nosupport'); return; }
+      try{
+        if(sPrev){ sPrev.src=URL.createObjectURL(file); sPrevWrap.hidden=false; }
+        var det=new BarcodeDetector({formats:['qr_code']});
+        var bmp=await createImageBitmap(file);
+        var codes=await det.detect(bmp);
+        if(bmp.close) bmp.close();
+        if(!codes||!codes.length){ sRes.textContent=sL('noqr'); return; }
+        render(codes[0].rawValue);
+      }catch(err){ sRes.textContent=sL('noqr'); }
+    }
+    scanBtn.addEventListener('click',function(){
+      sRes.textContent=''; sPrevWrap.hidden=true; sFile.value='';
+      if(scanDlg.showModal) scanDlg.showModal(); else scanDlg.setAttribute('open','');
+    });
+    sFile.addEventListener('change',function(){ if(sFile.files&&sFile.files[0]) decode(sFile.files[0]); });
+    document.getElementById('scanClose').addEventListener('click',function(){ scanDlg.close(); });
+    scanDlg.addEventListener('click',function(e){ if(e.target===scanDlg) scanDlg.close(); });
+  }
+
   // QR-Dialog
   var dlg=document.getElementById('qrdlg');
   if(dlg && window.QRCodeGen){

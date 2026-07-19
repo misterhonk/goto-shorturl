@@ -195,6 +195,25 @@ return [
     // Workflow
     'Kopieren'                           => 'Copy',
 
+    // QR-Code scannen (Reverse-QR)
+    'QR-Code scannen'                    => 'Scan QR code',
+    'Ziel eines bereits gedruckten Codes finden & ändern' => 'Find & change the target of an already printed code',
+    'Bild wählen / Kamera'               => 'Choose image / camera',
+    'Lade ein Foto/Bild eines GOTO-QR-Codes hoch – oder scanne ihn am Handy. Das Bild bleibt im Browser, es wird nichts hochgeladen.'
+        => 'Upload a photo/image of a GOTO QR code – or scan it on your phone. The image stays in your browser; nothing is uploaded.',
+    'Dieser Browser kann keine QR-Codes lesen. Nutze Chrome/Edge oder ein Handy.'
+        => 'This browser cannot read QR codes. Use Chrome/Edge or a phone.',
+    'Kein QR-Code im Bild erkannt. Versuche ein schärferes/größeres Foto.'
+        => 'No QR code detected in the image. Try a sharper/larger photo.',
+    'Kürzel „%s" gefunden – hier ist der zugehörige Eintrag:'
+        => 'Found slug “%s” – here is the matching entry:',
+    'Dieser GOTO-Code zeigt auf „%s", aber dazu gibt es (noch) keinen Eintrag.'
+        => 'This GOTO code points to “%s”, but there is no entry for it (yet).',
+    'Der QR-Code enthält diese Adresse:' => 'The QR code contains this address:',
+    'Eintrag bearbeiten'                 => 'Edit entry',
+    'Mit diesem Kürzel neu anlegen'      => 'Create with this slug',
+    'Als Ziel-URL übernehmen'            => 'Use as destination URL',
+
     // Voll-Backup & Toter-Link-Check
     'Voll-Backup (mit Klicks & Papierkorb)' => 'Full backup (with clicks & trash)',
     'Voll-Backup wiederhergestellt (%d Link(s)).' => 'Full backup restored (%d link(s)).',
