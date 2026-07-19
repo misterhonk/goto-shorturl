@@ -124,7 +124,14 @@ select{max-width:12rem;cursor:pointer;appearance:none;-webkit-appearance:none;pa
      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2386868b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
      background-repeat:no-repeat;background-position:right .6rem center;background-size:14px}
 input[type=file]{font:inherit;font-size:.85rem;color:var(--muted)}
-input[type=checkbox]{accent-color:var(--blue)}
+/* Custom-Checkbox (einheitlich, gut sichtbar) */
+input[type=checkbox]{appearance:none;-webkit-appearance:none;width:18px;height:18px;margin:0;
+     border:1.5px solid var(--line-strong);border-radius:6px;background:var(--card);cursor:pointer;
+     flex:0 0 auto;position:relative;vertical-align:middle;transition:background .15s,border-color .15s}
+input[type=checkbox]:checked{background:var(--blue);border-color:var(--blue)}
+input[type=checkbox]:checked::after{content:"";position:absolute;left:5px;top:2px;width:4px;height:8px;
+     border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+input[type=checkbox]:focus-visible{outline:none;box-shadow:0 0 0 3px var(--ring)}
 
 /* Buttons: Pills mit sanften Zuständen */
 .btn{font:inherit;font-weight:500;font-size:.85rem;padding:.55rem 1rem;border:1px solid transparent;
@@ -188,7 +195,7 @@ table tr:hover td{background:var(--fill)}
 table tr:hover td:first-child{border-top-left-radius:10px;border-bottom-left-radius:10px}
 table tr:hover td:last-child{border-top-right-radius:10px;border-bottom-right-radius:10px}
 .cbcell{width:1%;text-align:center}
-.rowchk{width:auto;cursor:pointer}
+input.rowchk{width:20px;height:20px}
 .linkcell{display:flex;align-items:center;gap:.55rem}
 .fav{width:16px;height:16px;border-radius:4px;flex:0 0 auto;background:var(--fill)}
 .fav.hide{visibility:hidden}
@@ -265,9 +272,9 @@ code{background:var(--fill);border:1px solid var(--line);padding:.12rem .4rem;bo
 .tools[open]{padding-bottom:1.15rem}
 .tools .bar{margin-top:.85rem}
 .chk{display:inline-flex;align-items:center;gap:.4rem;font-size:.85rem;color:var(--muted);white-space:nowrap}
-.chk input{width:auto}
+.chk input[type=checkbox]{width:16px;height:16px}
 .card .chk--remember{display:flex;align-items:center;gap:.5rem;margin:.9rem 0 0;color:var(--muted)}
-.card .chk--remember input{width:auto}
+.card .chk--remember input[type=checkbox]{width:16px;height:16px}
 
 /* Titel-holen-Feld (Input + Button nebeneinander) */
 .fetchfield{display:flex;gap:.4rem;align-items:stretch}
@@ -397,10 +404,14 @@ dialog.clkdlg{width:min(520px,94vw)}
 .charttip.on{opacity:1}
 
 /* Kopfzeile rechts: Theme-Umschalter + Abmelden */
-.topbar-actions{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;justify-content:flex-end}
-#theme,#lang{width:auto;min-width:6.5rem;max-width:none;padding:.42rem 1.7rem .42rem .6rem;font-size:.82rem;
-     background-color:transparent;border-color:transparent}
-#theme:hover,#lang:hover{background-color:var(--card);border-color:var(--line-strong)}
+.topbar-actions{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;justify-content:flex-end}
+/* Topbar-Steuerungen: randlose Icon-/Code-Buttons, Rahmen erst bei Hover */
+.topctl{border-color:transparent}
+.topctl:hover{border-color:var(--line-strong)}
+.topctl-code{font-weight:600;font-variant:small-caps;letter-spacing:.02em}
+#lang .topctl-code{display:none}   /* Desktop: voller Name, mobil: Kürzel */
+#theme .topctl-ico{display:none;align-items:center}
+#theme[data-t=system] .ti-system,#theme[data-t=light] .ti-light,#theme[data-t=dark] .ti-dark{display:inline-flex}
 
 /* Anmelden / Einrichtung: zentrierte Ansicht mit großer Marke und Glow */
 .authwrap{position:relative;min-height:calc(100dvh - 9rem);display:flex;flex-direction:column;
@@ -446,26 +457,41 @@ dialog.clkdlg{width:min(520px,94vw)}
   .topbar{top:.4rem;padding:.5rem .7rem}
   .panel,.group{padding:1rem}
   .toolbox{padding:.4rem 1rem}
-  .brand h1{font-size:1.3rem}
-  .brand-mark{width:36px;height:36px;border-radius:11px}
+  /* Kompakte Topbar: Untertitel weg, Steuerungen als Icons/Kürzel */
+  .topbar{gap:.5rem}
+  .brand h1{font-size:1.25rem}
+  .brand-mark{width:34px;height:34px;border-radius:10px}
+  .brand .sub{display:none}
+  .topctl .topctl-txt{display:none}          /* Theme-Label & „Abmelden"-Text aus */
+  .topbar-actions a.btn .topctl-txt{display:none}
+  #lang .topctl-txt{display:none}
+  #lang .topctl-code{display:inline}         /* Sprache als Kürzel (DE/EN) */
   .stats{grid-template-columns:repeat(2,1fr);gap:.6rem}
   .stat{padding:.75rem .85rem}
   .stat-value{font-size:1.35rem}
-  /* Anlege-Felder volle Breite */
+  /* Anlege-Formular aufgeräumt */
   .bar .grow,.bar .grow2,.field--group,.field--date{flex:1 1 100%}
   .field--group select,.field--date,.datefield{max-width:none}
-  /* Tabellen werden zu Karten */
+  .addopts-hint{display:none}                /* Feld-Aufzählung neben „Weitere Optionen" weg */
+  .scanrow{flex-direction:column;align-items:flex-start;gap:.4rem}
+  .scanrow-hint{display:none}
+  /* Tabellen werden zu Karten – Checkbox groß und links daneben */
   table,tbody{display:block}
-  tr{display:block;background:var(--fill);border:1px solid var(--line);border-radius:12px;
-     padding:.7rem .8rem;margin-bottom:.6rem}
+  tr{display:block;position:relative;background:var(--fill);border:1px solid var(--line);
+     border-radius:12px;padding:.8rem .9rem .8rem 3.2rem;margin-bottom:.7rem}
   table tr:hover td{background:none}
   td{display:block;border:0;padding:.2rem 0}
-  .cbcell{display:inline-block;width:auto;margin-right:.5rem;vertical-align:middle}
+  .cbcell{position:absolute;left:.85rem;top:50%;transform:translateY(-50%);width:auto;margin:0}
+  tr.editrow{padding-left:.9rem}          /* Bearbeiten-Modus: kein Checkbox-Gutter */
+  tr.editrow .cbcell{display:none}
+  input.rowchk{width:26px;height:26px;border-radius:8px}
+  input.rowchk:checked::after{left:9px;top:4px;width:6px;height:11px;border-width:0 2.5px 2.5px 0}
   .clickcell,.movecell{display:inline-block;width:auto;vertical-align:middle}
   .clickcell{margin-right:1rem}
+  .movecell{margin-top:.5rem}
   .movecell select{min-width:0;width:auto;max-width:none}
   .target{white-space:normal;max-width:none;word-break:break-all}
-  .actions{text-align:left;margin-top:.55rem}
+  .actions{text-align:left;margin-top:.6rem}
   .actions .btn{margin:0 .4rem 0 0}
   .ltitle{max-width:none}
   .editgrid .erow .field,.editgrid .erow .field--date{flex:1 1 100%}

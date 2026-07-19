@@ -18,23 +18,30 @@
   document.querySelectorAll('img.fav').forEach(function(im){
     im.addEventListener('error',function(){ im.classList.add('hide'); });
   });
-  // Theme-Umschalter (System / Hell / Dunkel)
-  var themeSel=document.getElementById('theme');
-  if(themeSel){
-    var cur='system'; try{ cur=localStorage.getItem('goto-theme')||'system'; }catch(e){}
-    themeSel.value=cur;
-    themeSel.addEventListener('change',function(){
-      var v=themeSel.value;
-      try{ localStorage.setItem('goto-theme',v); }catch(e){}
-      if(v==='system') document.documentElement.removeAttribute('data-theme');
-      else document.documentElement.setAttribute('data-theme',v);
+  // Theme-Umschalter als Icon-Zyklus (System -> Hell -> Dunkel)
+  var themeBtn=document.getElementById('theme');
+  if(themeBtn){
+    var order=['system','light','dark'];
+    var labels={system:themeBtn.getAttribute('data-l-system'),light:themeBtn.getAttribute('data-l-light'),dark:themeBtn.getAttribute('data-l-dark')};
+    var tCur='system'; try{ tCur=localStorage.getItem('goto-theme')||'system'; }catch(e){}
+    function paintTheme(){ themeBtn.setAttribute('data-t',tCur);
+      var tx=themeBtn.querySelector('.topctl-txt'); if(tx) tx.textContent=labels[tCur]||''; }
+    paintTheme();
+    themeBtn.addEventListener('click',function(){
+      tCur=order[(order.indexOf(tCur)+1)%order.length];
+      try{ localStorage.setItem('goto-theme',tCur); }catch(e){}
+      if(tCur==='system') document.documentElement.removeAttribute('data-theme');
+      else document.documentElement.setAttribute('data-theme',tCur);
+      paintTheme();
     });
   }
-  // Sprach-Umschalter (lädt mit ?lang= neu, Cookie setzt der Server)
-  var langSel=document.getElementById('lang');
-  if(langSel) langSel.addEventListener('change',function(){
-    var self=langSel.getAttribute('data-self')||'';
-    location.href=self+'?lang='+encodeURIComponent(langSel.value);
+  // Sprach-Umschalter als Code-Zyklus (lädt mit ?lang= neu, Cookie setzt der Server)
+  var langBtn=document.getElementById('lang');
+  if(langBtn) langBtn.addEventListener('click',function(){
+    var self=langBtn.getAttribute('data-self')||'', cur=langBtn.getAttribute('data-cur')||'de', langs=['de','en'];
+    try{ langs=JSON.parse(langBtn.getAttribute('data-langs'))||langs; }catch(e){}
+    var next=langs[(langs.indexOf(cur)+1)%langs.length];
+    location.href=self+'?lang='+encodeURIComponent(next);
   });
   // „Weitere Optionen" im Anlege-Formular: Auf/Zu-Zustand pro Browser merken
   var addopts=document.getElementById('addopts');

@@ -5,6 +5,16 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+### Geändert
+- **Mobile-Ansicht überarbeitet:** kompakte Topbar (Untertitel ausgeblendet;
+  Sprache als Kürzel `DE`/`EN`, Theme-Umschalter und Abmelden als Icon).
+  Der Theme-Umschalter ist jetzt generell ein **Icon-Zyklus** (System → Hell →
+  Dunkel, mit Monitor-/Sonne-/Mond-Icon) statt Dropdown.
+- **Anlege-Formular mobil aufgeräumt** (Feld-Aufzählung neben „Weitere Optionen"
+  und der Scan-Hinweis werden auf schmalen Screens ausgeblendet).
+- **Einträge & Auswahl mobil:** größere, links stehende **Custom-Checkbox** je
+  Karte; alle Checkboxen sind jetzt einheitlich gestaltet (kein natives Kästchen).
+
 ## [1.1.0] – 2026-07-10
 
 ### Hinzugefügt

@@ -448,6 +448,10 @@ function icon(string $name): string {
         'shield'   => '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
         'key'      => '<circle cx="7.5" cy="15.5" r="5.5"/><path d="M21 2l-9.6 9.6M15.5 7.5l3 3"/>',
         'pulse'    => '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+        'sun'      => '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+        'moon'     => '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+        'monitor'  => '<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>',
+        'globe'    => '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z"/>',
     ];
     return '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
          . 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
@@ -479,7 +483,7 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
         $hay   = strtolower($slug . ' ' . $l['title'] . ' ' . $url . ' ' . $l['group']);
         ?>
         <?php if ($editing === $slug): ?>
-        <tr>
+        <tr class="editrow">
           <td class="cbcell"></td>
           <td colspan="5">
             <div class="editgrid">
@@ -1254,16 +1258,20 @@ head('GOTO', $nonce);
     </div>
   </div>
   <div class="topbar-actions">
-    <select id="lang" aria-label="<?= t('Sprache') ?>" title="<?= t('Sprache') ?>" data-self="<?= e($self) ?>">
-      <option value="de"<?= $lang === 'de' ? ' selected' : '' ?>>Deutsch</option>
-      <option value="en"<?= $lang === 'en' ? ' selected' : '' ?>>English</option>
-    </select>
-    <select id="theme" aria-label="<?= t('Darstellung') ?>" title="<?= t('Darstellung') ?>">
-      <option value="system"><?= t('System') ?></option>
-      <option value="light"><?= t('Hell') ?></option>
-      <option value="dark"><?= t('Dunkel') ?></option>
-    </select>
-    <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?logout"><?= icon('logout') ?><?= t('Abmelden') ?></a>
+    <button type="button" id="lang" class="btn btn--ghost btn--small topctl"
+            aria-label="<?= t('Sprache') ?>" title="<?= t('Sprache') ?>"
+            data-self="<?= e($self) ?>" data-langs='["de","en"]' data-cur="<?= e($lang) ?>">
+      <?= icon('globe') ?><span class="topctl-txt"><?= $lang === 'de' ? 'Deutsch' : 'English' ?></span><span class="topctl-code"><?= e(strtoupper($lang)) ?></span>
+    </button>
+    <button type="button" id="theme" class="btn btn--ghost btn--small topctl" data-t="system"
+            aria-label="<?= t('Darstellung') ?>" title="<?= t('Darstellung') ?>"
+            data-l-system="<?= e(t('System')) ?>" data-l-light="<?= e(t('Hell')) ?>" data-l-dark="<?= e(t('Dunkel')) ?>">
+      <span class="topctl-ico ti-system"><?= icon('monitor') ?></span>
+      <span class="topctl-ico ti-light"><?= icon('sun') ?></span>
+      <span class="topctl-ico ti-dark"><?= icon('moon') ?></span>
+      <span class="topctl-txt"></span>
+    </button>
+    <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?logout" aria-label="<?= t('Abmelden') ?>" title="<?= t('Abmelden') ?>"><?= icon('logout') ?><span class="topctl-txt"><?= t('Abmelden') ?></span></a>
   </div>
 </div>
 
@@ -1377,7 +1385,7 @@ foreach ($links as $s => $l) { $k = $normUrl((string) $l['url']); if ($k !== '' 
   </details>
   <p class="scanrow">
     <button type="button" id="scanBtn" class="btn btn--ghost btn--small"><?= icon('qr') ?><?= t('QR-Code scannen') ?></button>
-    <span class="muted"><?= t('Ziel eines bereits gedruckten Codes finden & ändern') ?></span>
+    <span class="muted scanrow-hint"><?= t('Ziel eines bereits gedruckten Codes finden & ändern') ?></span>
   </p>
 </div>
 
