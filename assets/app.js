@@ -405,17 +405,44 @@
       var tb=sRes.querySelector('[data-scan-target]');
       if(tb) tb.addEventListener('click',function(){ prefillAdd(text.trim(),''); });
     }
+    // jsQR (lokaler Decoder) beim ersten Scan nachladen – hält die Admin-Seite leicht
+    var jsqrReady=null;
+    function loadJsqr(){
+      if(window.jsQR) return Promise.resolve(true);
+      if(jsqrReady) return jsqrReady;
+      jsqrReady=new Promise(function(res){
+        var s=document.createElement('script');
+        s.src=(scanDlg.getAttribute('data-assets')||'assets/')+'jsqr.js';
+        s.onload=function(){ res(!!window.jsQR); };
+        s.onerror=function(){ res(false); };
+        document.head.appendChild(s);
+      });
+      return jsqrReady;
+    }
+    function tryDecode(bmp,maxDim){
+      var sc=Math.min(1, maxDim/Math.max(bmp.width,bmp.height));
+      var w=Math.max(1,Math.round(bmp.width*sc)), h=Math.max(1,Math.round(bmp.height*sc));
+      var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+      cv.getContext('2d').drawImage(bmp,0,0,w,h);
+      var id=cv.getContext('2d').getImageData(0,0,w,h);
+      var code=window.jsQR(id.data,id.width,id.height,{inversionAttempts:'attemptBoth'});
+      return code&&code.data?code.data:null;
+    }
     async function decode(file){
       sRes.textContent='…';
-      if(!('BarcodeDetector' in window)){ sRes.textContent=sL('nosupport'); return; }
+      if(sPrev){ sPrev.src=URL.createObjectURL(file); sPrevWrap.hidden=false; }
+      if(!await loadJsqr()){ sRes.textContent=sL('nosupport'); return; }
       try{
-        if(sPrev){ sPrev.src=URL.createObjectURL(file); sPrevWrap.hidden=false; }
-        var det=new BarcodeDetector({formats:['qr_code']});
-        var bmp=await createImageBitmap(file);
-        var codes=await det.detect(bmp);
+        var bmp;
+        try{ bmp=await createImageBitmap(file,{imageOrientation:'from-image'}); }
+        catch(_){ bmp=await createImageBitmap(file); }
+        // In mehreren Auflösungen versuchen (Fotos, kleine QRs im großen Bild)
+        var big=Math.max(bmp.width,bmp.height);
+        var sizes=[1600, big, 2600, 900].filter(function(s,idx,a){ return a.indexOf(s)===idx; });
+        var val=null;
+        for(var k=0;k<sizes.length&&!val;k++) val=tryDecode(bmp,sizes[k]);
         if(bmp.close) bmp.close();
-        if(!codes||!codes.length){ sRes.textContent=sL('noqr'); return; }
-        render(codes[0].rawValue);
+        if(val) render(val); else sRes.textContent=sL('noqr');
       }catch(err){ sRes.textContent=sL('noqr'); }
     }
     scanBtn.addEventListener('click',function(){

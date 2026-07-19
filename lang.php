@@ -201,8 +201,8 @@ return [
     'Bild wählen / Kamera'               => 'Choose image / camera',
     'Lade ein Foto/Bild eines GOTO-QR-Codes hoch – oder scanne ihn am Handy. Das Bild bleibt im Browser, es wird nichts hochgeladen.'
         => 'Upload a photo/image of a GOTO QR code – or scan it on your phone. The image stays in your browser; nothing is uploaded.',
-    'Dieser Browser kann keine QR-Codes lesen. Nutze Chrome/Edge oder ein Handy.'
-        => 'This browser cannot read QR codes. Use Chrome/Edge or a phone.',
+    'QR-Decoder konnte nicht geladen werden – ist assets/jsqr.js hochgeladen?'
+        => 'QR decoder could not be loaded – is assets/jsqr.js uploaded?',
     'Kein QR-Code im Bild erkannt. Versuche ein schärferes/größeres Foto.'
         => 'No QR code detected in the image. Try a sharper/larger photo.',
     'Kürzel „%s" gefunden – hier ist der zugehörige Eintrag:'

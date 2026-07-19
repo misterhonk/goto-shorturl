@@ -1481,8 +1481,9 @@ foreach ($links as $s => $l) { $k = $normUrl((string) $l['url']); if ($k !== '' 
 
 <dialog id="scandlg" class="qrdlg scandlg"
      data-base="<?= e($base) ?>"
+     data-assets="<?= e(rtrim(dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/')), '/') . '/') ?>assets/"
      data-slugs="<?= e(json_encode(array_keys($links), JSON_UNESCAPED_SLASHES)) ?>"
-     data-l-nosupport="<?= e(t('Dieser Browser kann keine QR-Codes lesen. Nutze Chrome/Edge oder ein Handy.')) ?>"
+     data-l-nosupport="<?= e(t('QR-Decoder konnte nicht geladen werden – ist assets/jsqr.js hochgeladen?')) ?>"
      data-l-noqr="<?= e(t('Kein QR-Code im Bild erkannt. Versuche ein schärferes/größeres Foto.')) ?>"
      data-l-found="<?= e(t('Kürzel „%s" gefunden – hier ist der zugehörige Eintrag:')) ?>"
      data-l-notfound="<?= e(t('Dieser GOTO-Code zeigt auf „%s", aber dazu gibt es (noch) keinen Eintrag.')) ?>"

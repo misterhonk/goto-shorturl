@@ -34,7 +34,8 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 - **QR-Code scannen** (Reverse-QR): einen bereits gedruckten GOTO-QR fotografieren/
   hochladen → GOTO erkennt das Kürzel und springt direkt ins Bearbeiten des
   Eintrags (Ziel ändern, ohne den Code neu zu drucken). Dekodierung **lokal im
-  Browser** (native `BarcodeDetector`, kein Upload)
+  Browser** (mitgelieferter Decoder `assets/jsqr.js`, kein Upload, kein externer
+  Dienst; am Handy öffnet sich direkt die Kamera)
 - **Klick-Zähler** — rein anonym (keine IPs, Zeitstempel oder User-Agents),
   mit **Gesamt-Statistik** über alle Links (Kachel anklicken) und
   **CSV-Export** der Tageswerte,
@@ -85,7 +86,7 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 | `lib.php` | Gemeinsame Basis (Bootstrap, Datenmodell, Helfer) für die drei oben |
 | `config.php` | Konfiguration (Passwort-Hash, Timeouts, Datenpfad) |
 | `deploy.sh` | Baut einen vollständigen Upload-Satz in `dist/` *(nur Dev)* |
-| `assets/` | Statisches Frontend: `goto.css`, `app.js`, `qr.js` (QR-Encoder), Icons (`favicon.svg`, `apple-touch-icon.png`, `og.png`) |
+| `assets/` | Statisches Frontend: `goto.css`, `app.js`, `qr.js` (QR-Encoder), `jsqr.js` (QR-Decoder, Apache-2.0), Icons (`favicon.svg`, `apple-touch-icon.png`, `og.png`) |
 | `favicon.ico` | Fallback-Favicon für ältere Browser |
 | `.htaccess` | URL-Rewriting + Schutz sensibler Dateien |
 | `urls.json` | Datenbestand (Gruppen + Links) |

@@ -11,8 +11,9 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
   das Kürzel und springt direkt in dessen **Bearbeiten**-Ansicht (Ziel ändern,
   ohne den Code neu zu drucken). Unbekannte Kürzel lassen sich mit einem Klick
   neu anlegen, fremde URLs als Ziel übernehmen. Dekodierung läuft **lokal im
-  Browser** (native `BarcodeDetector`), es wird **nichts hochgeladen**; am Handy
-  öffnet die Bildauswahl direkt die Kamera.
+  Browser** über den mitgelieferten Decoder `assets/jsqr.js` (Apache-2.0, beim
+  ersten Scan nachgeladen) – es wird **nichts hochgeladen**, kein externer Dienst,
+  funktioniert in allen Browsern; am Handy öffnet die Bildauswahl direkt die Kamera.
 
 ## [1.0.0] – 2026-07-10
 
