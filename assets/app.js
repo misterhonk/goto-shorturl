@@ -419,31 +419,35 @@
       });
       return jsqrReady;
     }
-    function tryDecode(bmp,maxDim){
-      var sc=Math.min(1, maxDim/Math.max(bmp.width,bmp.height));
-      var w=Math.max(1,Math.round(bmp.width*sc)), h=Math.max(1,Math.round(bmp.height*sc));
+    // Bild bei Zielkantenlänge auf Canvas zeichnen (weißer Grund für
+    // transparente/SVG-QRs) und mit jsQR dekodieren.
+    function drawDecode(img,out){
+      var nw=img.naturalWidth||img.width||out, nh=img.naturalHeight||img.height||out;
+      var w,h; if(nw>=nh){ w=out; h=Math.max(1,Math.round(out*nh/nw)); } else { h=out; w=Math.max(1,Math.round(out*nw/nh)); }
       var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
-      cv.getContext('2d').drawImage(bmp,0,0,w,h);
-      var id=cv.getContext('2d').getImageData(0,0,w,h);
-      var code=window.jsQR(id.data,id.width,id.height,{inversionAttempts:'attemptBoth'});
-      return code&&code.data?code.data:null;
+      var cx=cv.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,w,h); cx.drawImage(img,0,0,w,h);
+      try{ var id=cx.getImageData(0,0,w,h);
+        var code=window.jsQR(id.data,id.width,id.height,{inversionAttempts:'attemptBoth'});
+        return code&&code.data?code.data:null;
+      }catch(_){ return null; }   // z. B. getImageData-SecurityError
     }
     async function decode(file){
       sRes.textContent='…';
-      if(sPrev){ sPrev.src=URL.createObjectURL(file); sPrevWrap.hidden=false; }
+      var url=URL.createObjectURL(file);
+      if(sPrev){ sPrev.src=url; sPrevWrap.hidden=false; }
       if(!await loadJsqr()){ sRes.textContent=sL('nosupport'); return; }
-      try{
-        var bmp;
-        try{ bmp=await createImageBitmap(file,{imageOrientation:'from-image'}); }
-        catch(_){ bmp=await createImageBitmap(file); }
-        // In mehreren Auflösungen versuchen (Fotos, kleine QRs im großen Bild)
-        var big=Math.max(bmp.width,bmp.height);
-        var sizes=[1600, big, 2600, 900].filter(function(s,idx,a){ return a.indexOf(s)===idx; });
-        var val=null;
-        for(var k=0;k<sizes.length&&!val;k++) val=tryDecode(bmp,sizes[k]);
-        if(bmp.close) bmp.close();
+      // <img> lädt PNG, JPG, WebP UND SVG einheitlich (createImageBitmap kann
+      // kein SVG rastern) und wendet EXIF-Orientierung von Fotos an.
+      var img=new Image();
+      img.onload=function(){
+        var big=Math.max(img.naturalWidth||0,img.naturalHeight||0)||1000;
+        var sizes=[Math.min(2200,Math.max(big,1200)),1600,2400,900];
+        var seen={},val=null;
+        for(var k=0;k<sizes.length&&!val;k++){ var s=sizes[k]; if(seen[s])continue; seen[s]=1; val=drawDecode(img,s); }
         if(val) render(val); else sRes.textContent=sL('noqr');
-      }catch(err){ sRes.textContent=sL('noqr'); }
+      };
+      img.onerror=function(){ sRes.textContent=sL('noqr'); };
+      img.src=url;
     }
     scanBtn.addEventListener('click',function(){
       sRes.textContent=''; sPrevWrap.hidden=true; sFile.value='';
