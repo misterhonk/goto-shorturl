@@ -50,6 +50,19 @@ function e(string $s): string {
 function is_expired(string $expires): bool {
     return $expires !== '' && $expires < date('Y-m-d');
 }
+function is_pending(string $starts): bool {
+    return $starts !== '' && $starts > date('Y-m-d');
+}
+// Weitere Ziele als Freitext fürs Formular: eine URL je Zeile, Gewicht >1 angehängt
+function alts_text($alts): string {
+    $lines = [];
+    foreach ((is_array($alts) ? $alts : []) as $a) {
+        if (!is_array($a) || ($a['url'] ?? '') === '') continue;
+        $w = (int) ($a['weight'] ?? 1);
+        $lines[] = $a['url'] . ($w > 1 ? ' ' . $w : '');
+    }
+    return implode("\n", $lines);
+}
 
 function host_of(string $url): string {
     return (string) parse_url($url, PHP_URL_HOST);
@@ -493,6 +506,13 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
                   <input form="editform" type="text" name="newslug" value="<?= e($slug) ?>" pattern="[a-z0-9\-]+" required>
                 </label>
                 <label class="field field--date">
+                  <span class="field-label"><?= t('Aktiv ab (optional)') ?></span>
+                  <span class="datefield">
+                    <input form="editform" type="date" name="starts" value="<?= e((string) ($l['starts'] ?? '')) ?>">
+                    <button type="button" class="btn btn--ghost btn--small datefield-clear" data-clear-date title="<?= t('Startdatum entfernen') ?>"><?= icon('x') ?></button>
+                  </span>
+                </label>
+                <label class="field field--date">
                   <span class="field-label"><?= t('Ablaufdatum (optional)') ?></span>
                   <span class="datefield">
                     <input form="editform" type="date" name="expires" value="<?= e($l['expires']) ?>">
@@ -523,6 +543,11 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
                 <span class="field-label"><?= t('Ziel nach Ablauf (optional)') ?></span>
                 <input form="editform" type="text" name="expires_url" value="<?= e((string) ($l['expires_url'] ?? '')) ?>" placeholder="<?= t('z. B. https://ziel-adresse.de/aktion-vorbei') ?>">
               </label>
+              <label class="field">
+                <span class="field-label"><?= t('Weitere Ziele – Rotation (optional)') ?></span>
+                <textarea form="editform" name="alts" rows="2" placeholder="<?= t('eine URL je Zeile; optional Gewicht anhängen, z. B. „https://ziel.de 3“') ?>"><?= e(alts_text($l['alts'] ?? [])) ?></textarea>
+                <span class="field-hint"><?= t('Ist mindestens ein weiteres Ziel gesetzt, wird bei jedem Aufruf zufällig (gewichtet) eines gewählt.') ?></span>
+              </label>
               <div class="erow erow--actions">
                 <button form="editform" class="btn btn--primary btn--small"><?= icon('check') ?><?= t('Speichern') ?></button>
                 <a class="btn btn--ghost btn--small" href="<?= e($self) ?>"><?= icon('x') ?><?= t('Abbrechen') ?></a>
@@ -542,8 +567,8 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
               </div>
             </div>
           </td>
-          <td class="target" title="<?= e($url) ?>"><?= e($url) ?><?php if (link_dead($GLOBALS['linkcheck'][$slug] ?? null)): ?><span class="chip chip--exp" title="<?= t('Ziel nicht erreichbar (letzte Prüfung)') ?>"><?= icon('x') ?><?= t('toter Link') ?></span><?php endif; ?><?php if (($l['pass'] ?? '') !== ''): ?><span class="chip chip--lock" title="<?= t('passwortgeschützt') ?>"><?= icon('lock') ?></span><?php endif; ?><?php if (!empty($l['preview'])): ?><span class="chip chip--lock" title="<?= t('Vorschau-Seite aktiv') ?>"><?= icon('eye') ?></span><?php endif; ?><?php if ($l['expires'] !== ''): ?><span class="chip <?= is_expired($l['expires']) ? 'chip--exp' : 'chip--date' ?>"><?= icon('calendar') ?><?= is_expired($l['expires']) ? 'abgelaufen' : e($l['expires']) ?></span><?php endif; ?></td>
-          <td class="clickcell"><button type="button" class="clicks" data-slug="<?= e($slug) ?>" data-total="<?= clicks_total($clicks, $slug) ?>" data-days="<?= e(json_encode(clicks_days($clicks, $slug), JSON_FORCE_OBJECT)) ?>" title="<?= t('Klick-Verlauf anzeigen') ?>" aria-label="<?= t('Klick-Verlauf anzeigen') ?>"><?php $spark = sparkline_svg(clicks_days($clicks, $slug)); echo $spark ?: icon('bars'); ?><?= clicks_total($clicks, $slug) ?></button></td>
+          <td class="target" title="<?= e($url) ?>"><?= e($url) ?><?php if (link_dead($GLOBALS['linkcheck'][$slug] ?? null)): ?><span class="chip chip--exp" title="<?= t('Ziel nicht erreichbar (letzte Prüfung)') ?>"><?= icon('x') ?><?= t('toter Link') ?></span><?php endif; ?><?php if (($l['pass'] ?? '') !== ''): ?><span class="chip chip--lock" title="<?= t('passwortgeschützt') ?>"><?= icon('lock') ?></span><?php endif; ?><?php if (!empty($l['preview'])): ?><span class="chip chip--lock" title="<?= t('Vorschau-Seite aktiv') ?>"><?= icon('eye') ?></span><?php endif; ?><?php if (!empty($l['alts']) && is_array($l['alts'])): ?><span class="chip chip--date" title="<?= t('Rotation: Ziel wird bei jedem Aufruf gewählt') ?>"><?= icon('qr') ?><?= t('Rotation') ?> <?= count($l['alts']) + 1 ?></span><?php endif; ?><?php if (is_pending((string) ($l['starts'] ?? ''))): ?><span class="chip chip--date" title="<?= t('Wird erst ab diesem Tag aktiv') ?>"><?= icon('calendar') ?><?= t('ab') ?> <?= e((string) $l['starts']) ?></span><?php endif; ?><?php if ($l['expires'] !== ''): ?><span class="chip <?= is_expired($l['expires']) ? 'chip--exp' : 'chip--date' ?>"><?= icon('calendar') ?><?= is_expired($l['expires']) ? 'abgelaufen' : e($l['expires']) ?></span><?php endif; ?></td>
+          <td class="clickcell"><button type="button" class="clicks" data-slug="<?= e($slug) ?>" data-total="<?= clicks_total($clicks, $slug) ?>" data-days="<?= e(json_encode(clicks_days($clicks, $slug), JSON_FORCE_OBJECT)) ?>" data-src="<?= e(json_encode((object) clicks_sources($clicks, $slug), JSON_FORCE_OBJECT)) ?>" title="<?= t('Klick-Verlauf anzeigen') ?>" aria-label="<?= t('Klick-Verlauf anzeigen') ?>"><?php $spark = sparkline_svg(clicks_days($clicks, $slug)); echo $spark ?: icon('bars'); ?><?= clicks_total($clicks, $slug) ?></button></td>
           <td class="movecell">
             <form method="post" class="inline">
               <input type="hidden" name="action" value="move">
@@ -553,7 +578,7 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
             </form>
           </td>
           <td class="actions">
-            <button type="button" class="btn btn--ghost btn--small" data-qr="<?= e($short) ?>" data-slug="<?= e($slug) ?>" title="<?= t('QR-Code') ?>" aria-label="<?= t('QR-Code') ?>"><?= icon('qr') ?></button>
+            <button type="button" class="btn btn--ghost btn--small" data-qr="<?= e($short) ?>" data-slug="<?= e($slug) ?>" data-title="<?= e($l['title']) ?>" title="<?= t('QR-Code') ?>" aria-label="<?= t('QR-Code') ?>"><?= icon('qr') ?></button>
             <button type="button" class="btn btn--ghost btn--small" data-copy="<?= e($short) ?>" title="<?= t('Kurzlink kopieren') ?>" aria-label="Kopieren"><?= icon('copy') ?></button>
             <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?edit=<?= urlencode($slug) ?>" title="<?= t('Bearbeiten') ?>" aria-label="<?= t('Bearbeiten') ?>"><?= icon('edit') ?></a>
             <form class="inline" method="post" data-confirm="<?= e(t('„%s“ wirklich löschen?', $slug)) ?>">
@@ -884,9 +909,11 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
     $group  = clean_group((string) ($_POST['group'] ?? ''));
     $title  = clean_title((string) ($_POST['title'] ?? ''));
     $expires = clean_date((string) ($_POST['expires'] ?? ''));
+    $starts  = clean_date((string) ($_POST['starts'] ?? ''));   // Aktivierungstag (optional)
     $linkpw  = (string) ($_POST['linkpw'] ?? '');   // Link-Passwort (optional, wird gehasht)
     $expUrl  = trim((string) ($_POST['expires_url'] ?? ''));   // Ziel nach Ablauf (optional)
     if (!valid_url($expUrl)) $expUrl = '';
+    $alts    = parse_alts_text((string) ($_POST['alts'] ?? ''));   // weitere Ziele (Rotation)
     $groupValid = ($group === '' || in_array($group, $data['groups'], true)) ? $group : '';
 
     if ($action === 'add') {
@@ -900,9 +927,9 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
                 flash(t('Kürzel „%s“ existiert bereits.', $slug));
             } else {
                 $data['links'][$slug] = ['url' => $url, 'group' => $groupValid,
-                    'title' => $title, 'expires' => $expires, 'created' => time(),
+                    'title' => $title, 'expires' => $expires, 'starts' => $starts, 'created' => time(),
                     'pass' => ($linkpw !== '') ? password_hash($linkpw, PASSWORD_DEFAULT) : '',
-                    'preview' => !empty($_POST['preview']), 'expires_url' => $expUrl];
+                    'preview' => !empty($_POST['preview']), 'expires_url' => $expUrl, 'alts' => $alts];
                 save_data($data)
                     ? flash(t('„%s“ angelegt.', $slug), 'success', $base . $slug)
                     : flash(t('Konnte nicht speichern – Schreibrechte für urls.json prüfen.'));
@@ -917,12 +944,13 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
         elseif ($newslug !== $slug && isset($data['links'][$newslug])) flash(t('„%s“ ist bereits vergeben.', $newslug));
         else {
             $entry = $data['links'][$slug];
-            $entry['url'] = $url; $entry['title'] = $title; $entry['expires'] = $expires;
+            $entry['url'] = $url; $entry['title'] = $title; $entry['expires'] = $expires; $entry['starts'] = $starts;
             // Link-Passwort: Checkbox entfernt es, neues ersetzt es, leer = unverändert
             if (!empty($_POST['pwclear'])) $entry['pass'] = '';
             elseif ($linkpw !== '')        $entry['pass'] = password_hash($linkpw, PASSWORD_DEFAULT);
             $entry['preview']     = !empty($_POST['preview']);
             $entry['expires_url'] = $expUrl;
+            $entry['alts']        = $alts;
             if ($newslug === $slug) {
                 $data['links'][$slug] = $entry;
             } else {
@@ -1083,7 +1111,8 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
             $tokens = load_api_tokens();
             do { $tid = bin2hex(random_bytes(6)); } while (isset($tokens[$tid]));
             $secret = bin2hex(random_bytes(24));
-            $tokens[$tid] = ['name' => $name, 'h' => hash('sha256', $secret),
+            $scope  = !empty($_POST['readonly']) ? 'read' : 'write';
+            $tokens[$tid] = ['name' => $name, 'h' => hash('sha256', $secret), 'scope' => $scope,
                              'created' => time(), 'used' => 0, 'calls' => 0];
             if (save_api_tokens($tokens)) {
                 $_SESSION['new_token'] = 'goto_' . $tid . '_' . $secret;
@@ -1284,6 +1313,7 @@ head('GOTO', $nonce);
     $weekKeys = [];
     for ($i = 0; $i < 7; $i++) $weekKeys[] = date('Y-m-d', time() - $i * 86400);
     $aggDays = [];   // Tageswerte über alle Links summiert (für den Verlaufs-Dialog)
+    $aggSrc  = [];   // Quellen über alle Links summiert
     foreach ($links as $s => $l) {
         $n = clicks_total($clicks, $s);
         $statTotal += $n;
@@ -1292,11 +1322,13 @@ head('GOTO', $nonce);
         $statNow += (int) ($d[$statToday] ?? 0);
         foreach ($weekKeys as $k) $statWeek += (int) ($d[$k] ?? 0);
         foreach ($d as $day => $dn) $aggDays[$day] = ($aggDays[$day] ?? 0) + (int) $dn;
+        foreach (clicks_sources($clicks, $s) as $src => $sn) $aggSrc[$src] = ($aggSrc[$src] ?? 0) + (int) $sn;
     }
+    arsort($aggSrc);
 ?>
 <div class="stats">
   <div class="stat"><span class="stat-label"><?= t('Links') ?></span><div class="stat-value"><?= count($links) ?></div></div>
-  <button type="button" class="stat stat--btn" data-days="<?= e(json_encode($aggDays, JSON_FORCE_OBJECT)) ?>" data-total="<?= $statTotal ?>" data-slug="<?= e(t('Alle Links')) ?>" title="<?= t('Klick-Verlauf anzeigen') ?>"><span class="stat-label"><?= t('Aufrufe gesamt') ?><?= icon('bars') ?></span><div class="stat-value"><?= $statTotal ?></div></button>
+  <button type="button" class="stat stat--btn" data-days="<?= e(json_encode($aggDays, JSON_FORCE_OBJECT)) ?>" data-src="<?= e(json_encode((object) $aggSrc, JSON_FORCE_OBJECT)) ?>" data-total="<?= $statTotal ?>" data-slug="<?= e(t('Alle Links')) ?>" title="<?= t('Klick-Verlauf anzeigen') ?>"><span class="stat-label"><?= t('Aufrufe gesamt') ?><?= icon('bars') ?></span><div class="stat-value"><?= $statTotal ?></div></button>
   <div class="stat"><span class="stat-label"><?= t('Heute') ?></span><div class="stat-value"><?= $statNow ?></div></div>
   <div class="stat"><span class="stat-label"><?= t('Letzte 7 Tage') ?></span><div class="stat-value"><?= $statWeek ?></div></div>
   <?php if ($topN > 0): ?>
@@ -1345,6 +1377,13 @@ foreach ($links as $s => $l) { $k = $normUrl((string) $l['url']); if ($k !== '' 
         <select form="addform" name="group"><?= group_options($groups, '') ?></select>
       </label>
       <label class="field field--date">
+        <span class="field-label"><?= t('Aktiv ab (optional)') ?></span>
+        <span class="datefield">
+          <input form="addform" type="date" name="starts" title="<?= t('Vor diesem Tag ist der Link noch nicht aktiv') ?>">
+          <button type="button" class="btn btn--ghost btn--small datefield-clear" data-clear-date title="<?= t('Startdatum entfernen') ?>"><?= icon('x') ?></button>
+        </span>
+      </label>
+      <label class="field field--date">
         <span class="field-label"><?= t('Ablaufdatum (optional)') ?></span>
         <span class="datefield">
           <input form="addform" type="date" name="expires" title="Nach diesem Tag ist der Link gesperrt">
@@ -1369,6 +1408,13 @@ foreach ($links as $s => $l) { $k = $normUrl((string) $l['url']); if ($k !== '' 
       <label class="field grow">
         <span class="field-label"><?= t('Ziel nach Ablauf (optional)') ?></span>
         <input form="addform" type="text" name="expires_url" placeholder="<?= t('z. B. https://ziel-adresse.de/aktion-vorbei') ?>">
+      </label>
+    </div>
+    <div class="bar">
+      <label class="field grow">
+        <span class="field-label"><?= t('Weitere Ziele – Rotation (optional)') ?></span>
+        <textarea form="addform" name="alts" rows="2" placeholder="<?= t('eine URL je Zeile; optional Gewicht anhängen, z. B. „https://ziel.de 3“') ?>"></textarea>
+        <span class="field-hint"><?= t('Ist mindestens ein weiteres Ziel gesetzt, wird bei jedem Aufruf zufällig (gewichtet) eines gewählt.') ?></span>
       </label>
     </div>
     <label class="chk chk--opt"><input form="addform" type="checkbox" name="preview" value="1"> <?= t('Vorschau-Seite vor der Weiterleitung') ?></label>
@@ -1548,6 +1594,12 @@ foreach ($links as $s => $l) { $k = $normUrl((string) $l['url']); if ($k !== '' 
       </label>
       <input type="file" id="qrLogoFile" accept="image/png,image/jpeg,image/svg+xml,image/webp" hidden>
       <p class="muted" id="qrLogoHint" hidden><?= t('Mit Logo wird Fehlerkorrektur H verwendet. Das Bild bleibt im Browser – es wird nichts hochgeladen.') ?></p>
+      <div class="qrprefs">
+        <button type="button" class="btn btn--ghost btn--small" id="qrSaveDefaults" title="<?= t('Aktuelle Einstellungen (Farben, Größe, Rand, Fehlerkorrektur, Logo) für neue QR-Codes merken') ?>"><?= icon('check') ?><?= t('Als Standard merken') ?></button>
+        <button type="button" class="btn btn--ghost btn--small" id="qrResetDefaults" hidden><?= icon('x') ?><?= t('Standard zurücksetzen') ?></button>
+      </div>
+      <label><?= t('Quelle (für Statistik)') ?><input type="text" id="qrSource" maxlength="32" placeholder="<?= t('z. B. flyer, plakat') ?>" autocomplete="off"></label>
+      <p class="muted" id="qrSourceHint" hidden><?= t('Der QR zählt Aufrufe unter dieser Quelle – sichtbar im Klick-Verlauf. Der Marker wird nicht an das Ziel weitergegeben.') ?></p>
       <p class="muted qrurl" id="qrUrl"></p>
       <div class="qrdl">
         <button type="button" class="btn btn--primary btn--small" id="qrPng"><?= icon('download') ?>PNG</button>
@@ -1577,6 +1629,10 @@ foreach ($links as $s => $l) { $k = $normUrl((string) $l['url']); if ($k !== '' 
       <div id="clkTip" class="charttip"></div>
     </div>
     <p class="muted" id="clkEmpty" hidden><?= t('Noch keine Aufrufe im Zeitraum.') ?></p>
+    <div class="clksrc" id="clkSrc" hidden>
+      <h3 class="clksrc-title"><?= t('Aufrufe nach Quelle') ?></h3>
+      <ul class="clksrc-list" id="clkSrcList"></ul>
+    </div>
   </div>
 </dialog>
 
@@ -1589,7 +1645,8 @@ foreach ($links as $s => $l) { $k = $normUrl((string) $l['url']); if ($k !== '' 
     <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?export=1"><?= icon('download') ?><?= t('Export – JSON herunterladen') ?></a>
     <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?export=full"><?= icon('download') ?><?= t('Voll-Backup (mit Klicks & Papierkorb)') ?></a>
     <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?export=stats"><?= icon('bars') ?><?= t('Klick-Statistik (CSV)') ?></a>
-    <?php if ($links): ?><button type="button" id="qrAllZip" class="btn btn--ghost btn--small"><?= icon('qr') ?><?= t('Alle QR-Codes (ZIP)') ?></button><?php endif; ?>
+    <?php if ($links): ?><button type="button" id="qrAllZip" class="btn btn--ghost btn--small"><?= icon('qr') ?><?= t('Alle QR-Codes (ZIP)') ?></button>
+    <button type="button" id="qrSheet" class="btn btn--ghost btn--small" title="<?= t('Ausgewählte oder alle Links als Etikettenbogen drucken') ?>"><?= icon('qr') ?><?= t('QR-Etikettenbogen drucken') ?></button><?php endif; ?>
   </p>
   <form class="bar" method="post" enctype="multipart/form-data" autocomplete="off">
     <input type="hidden" name="action" value="import">
@@ -1743,7 +1800,7 @@ unset($_SESSION['new_token']);
   <table class="trashlist">
     <?php foreach ($apiTokens as $tid => $tk): $tname = (string) ($tk['name'] ?? $tid); ?>
     <tr>
-      <td><span class="slugmono"><?= e($tname) ?></span></td>
+      <td><span class="slugmono"><?= e($tname) ?></span><?php if (($tk['scope'] ?? 'write') === 'read'): ?> <span class="chip chip--date" title="<?= t('Nur-Lese-Token') ?>"><?= icon('eye') ?><?= t('nur Lesen') ?></span><?php endif; ?></td>
       <td class="muted nowrap"><?= t('erstellt %s', date('d.m.Y', (int) ($tk['created'] ?? 0))) ?></td>
       <td class="muted nowrap"><?= ($tk['used'] ?? 0) ? t('zuletzt %s', date('d.m.Y', (int) $tk['used'])) : t('nie genutzt') ?></td>
       <td class="muted nowrap"><?= t('%d Aufrufe', (int) ($tk['calls'] ?? 0)) ?></td>
@@ -1766,6 +1823,7 @@ unset($_SESSION['new_token']);
       <span class="field-label"><?= t('Token-Name') ?></span>
       <input type="text" name="name" maxlength="40" placeholder="<?= t('z. B. Doku-Skript') ?>" required>
     </label>
+    <label class="chk"><input type="checkbox" name="readonly" value="1"> <?= t('Nur Lesen (read-only)') ?></label>
     <button class="btn btn--ghost"><?= icon('plus') ?><?= t('Token erstellen') ?></button>
   </form>
   <p class="muted"><?= t('Kurz-URLs per Skript anlegen (POST an %sapi.php):', e($base)) ?></p>
@@ -1909,6 +1967,9 @@ if ($auditLog):
   <a href="https://github.com/misterhonk/goto-shorturl/issues" target="_blank" rel="noopener"><?= t('Problem melden') ?></a>
   <span class="foot-info"><?= t('datenbanklos · DSGVO-freundlich · MIT-Lizenz') ?></span>
 </footer>
+
+<!-- QR-Etikettenbogen: nur beim Drucken sichtbar (per app.js gefüllt, @media print) -->
+<div id="qrsheet" class="qrsheet" aria-hidden="true"></div>
 
 <?php
 foot($nonce);

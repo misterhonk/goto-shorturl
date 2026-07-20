@@ -179,7 +179,7 @@
           var okF=(filter==='all')||(filter==='expired'&&exp)||(filter==='active'&&!exp);
           var okS=(q===''||r.getAttribute('data-search').indexOf(q)>=0);
           r.hidden=!(okF&&okS); if(!r.hidden) any=true;
-          tbl.appendChild(r); // in sortierter Reihenfolge neu anhängen
+          (tbl.tBodies[0]||tbl).appendChild(r); // in sortierter Reihenfolge neu anhängen
         });
       });
       secs.forEach(function(s){ var vis=s.querySelectorAll('tr[data-search]:not([hidden])').length;
@@ -279,7 +279,8 @@
     var cChartEl=document.getElementById('clkChart'), cTipEl=document.getElementById('clkTip'),
         cTitle=document.getElementById('clkTitle'), cTotal=document.getElementById('clkTotal'),
         cToday=document.getElementById('clkToday'), cEmpty=document.getElementById('clkEmpty'),
-        cSeg=document.getElementById('clkRange');
+        cSeg=document.getElementById('clkRange'),
+        cSrcWrap=document.getElementById('clkSrc'), cSrcList=document.getElementById('clkSrcList');
     var cDays={}, cN=14, cLabel=cTitle.textContent,
         cLang=cdlg.getAttribute('data-lang')||'de',
         cCalls=cdlg.getAttribute('data-l-calls')||'Aufrufe';
@@ -337,15 +338,35 @@
       cChartEl.innerHTML=''; cChartEl.appendChild(svg);
       cEmpty.hidden=sum>0;
     }
+    // Aufrufe nach Quelle (aus data-src, absteigend), als kleine Balkenliste
+    function renderSources(src){
+      if(!cSrcWrap) return;
+      var keys=Object.keys(src||{});
+      if(!keys.length){ cSrcWrap.hidden=true; cSrcList.innerHTML=''; return; }
+      keys.sort(function(a,b){ return (src[b]||0)-(src[a]||0); });
+      var max=Math.max.apply(null,keys.map(function(k){ return +src[k]||0; }).concat([1]));
+      cSrcList.innerHTML='';
+      keys.forEach(function(k){
+        var v=+src[k]||0, li=document.createElement('li');
+        var name=document.createElement('span'); name.className='clksrc-name'; name.textContent=k;
+        var bar=document.createElement('span'); bar.className='clksrc-bar';
+        var fill=document.createElement('i'); fill.style.width=Math.round(v/max*100)+'%'; bar.appendChild(fill);
+        var val=document.createElement('b'); val.className='clksrc-val'; val.textContent=v;
+        li.appendChild(name); li.appendChild(bar); li.appendChild(val); cSrcList.appendChild(li);
+      });
+      cSrcWrap.hidden=false;
+    }
     document.querySelectorAll('button[data-days]').forEach(function(b){
       b.addEventListener('click',function(){
         try{ cDays=JSON.parse(b.getAttribute('data-days'))||{}; }catch(_){ cDays={}; }
         if(Array.isArray(cDays)) cDays={};
+        var cSrc={}; try{ cSrc=JSON.parse(b.getAttribute('data-src')||'{}')||{}; }catch(_){ cSrc={}; }
+        if(Array.isArray(cSrc)) cSrc={};
         cTitle.textContent=cLabel+': '+(b.getAttribute('data-slug')||'');
         cTotal.textContent=b.getAttribute('data-total')||'0';
         cToday.textContent=String(cDays[isoLocal(new Date())]||0);
         if(cdlg.showModal) cdlg.showModal(); else cdlg.setAttribute('open','');
-        renderChart();
+        renderChart(); renderSources(cSrc);
       });
     });
     cSeg.querySelectorAll('button').forEach(function(b){
@@ -472,9 +493,33 @@
         elEcl=document.getElementById('qrEcl'), elScale=document.getElementById('qrScale'),
         elMargin=document.getElementById('qrMargin'), elFg=document.getElementById('qrFg'),
         elBg=document.getElementById('qrBg'), elUrl=document.getElementById('qrUrl'),
-        elTitle=document.getElementById('qrTitle');
+        elTitle=document.getElementById('qrTitle'),
+        elSource=document.getElementById('qrSource'), elSourceHint=document.getElementById('qrSourceHint');
     var cur={url:'',slug:'qr'};
     function num(el,d){ var v=parseInt(el.value,10); return isNaN(v)?d:v; }
+    // QR-Design-Voreinstellungen (lokal im Browser, kein Server): merken/anwenden
+    var QRPREFS='goto-qr-defaults';
+    function loadPrefs(){ try{ return JSON.parse(localStorage.getItem(QRPREFS)||'null'); }catch(_){ return null; } }
+    function applyPrefs(){
+      var p=loadPrefs(); if(!p||typeof p!=='object') return;
+      if(p.ecl) elEcl.value=p.ecl;
+      if(p.scale!=null) elScale.value=p.scale;
+      if(p.margin!=null) elMargin.value=p.margin;
+      if(p.fg) elFg.value=p.fg;
+      if(p.bg) elBg.value=p.bg;
+      if(p.logo==='goto' && elLogo){
+        elLogo.value='goto';
+        var im=new Image(); im.onload=function(){ logoImg=im; logoOn(); render(); }; im.src='assets/favicon.svg';
+      }
+    }
+    // Quellen-Marker (?q=…) an die QR-Ziel-URL hängen; wie serverseitig bereinigt
+    function cleanSource(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9._\-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,32); }
+    function qrUrl(){
+      var q=elSource?cleanSource(elSource.value):'';
+      if(elSourceHint) elSourceHint.hidden=!q;
+      if(!q) return cur.url;
+      return cur.url+(cur.url.indexOf('?')<0?'?':'&')+'q='+encodeURIComponent(q);
+    }
     function draw(qr,scale,margin){
       var n=qr.size, dim=(n+margin*2)*scale;
       var c=document.createElement('canvas'); c.width=dim; c.height=dim;
@@ -550,7 +595,8 @@
     }
     function render(){
       if(!cur.url) return;
-      try{ var qr=QRCodeGen.encode(cur.url, elEcl.value), m=Math.max(0,num(elMargin,4));
+      var url=qrUrl(); elUrl.textContent=url;
+      try{ var qr=QRCodeGen.encode(url, elEcl.value), m=Math.max(0,num(elMargin,4));
         var ps=Math.max(1,Math.floor(200/(qr.size+m*2)));
         prev.innerHTML=''; prev.appendChild(overlay(draw(qr,ps,m), elBg.value));
       }catch(err){ prev.textContent=err.message; }
@@ -558,21 +604,39 @@
     document.querySelectorAll('[data-qr]').forEach(function(b){
       b.addEventListener('click',function(){
         cur.url=b.getAttribute('data-qr'); cur.slug=b.getAttribute('data-slug')||'qr';
-        elTitle.textContent='QR-Code: '+cur.slug; elUrl.textContent=cur.url;
+        elTitle.textContent='QR-Code: '+cur.slug;
+        if(elSource) elSource.value='';
+        applyPrefs();
         render(); if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
       });
     });
-    [elEcl,elScale,elMargin,elFg,elBg].forEach(function(el){ el.addEventListener('input',render); });
+    [elEcl,elScale,elMargin,elFg,elBg,elSource].forEach(function(el){ if(el) el.addEventListener('input',render); });
+    // Voreinstellungen merken / zurücksetzen
+    var savePrefsBtn=document.getElementById('qrSaveDefaults'), resetPrefsBtn=document.getElementById('qrResetDefaults');
+    function refreshPrefsUi(){ if(resetPrefsBtn) resetPrefsBtn.hidden=!loadPrefs(); }
+    if(savePrefsBtn) savePrefsBtn.addEventListener('click',function(){
+      var logo=elLogo?elLogo.value:'none';
+      var p={ecl:elEcl.value,scale:elScale.value,margin:elMargin.value,fg:elFg.value,bg:elBg.value,
+              logo:(logo==='custom'?'none':logo)};
+      try{ localStorage.setItem(QRPREFS,JSON.stringify(p)); }catch(_){}
+      var old=savePrefsBtn.innerHTML; savePrefsBtn.textContent='✓'; setTimeout(function(){ savePrefsBtn.innerHTML=old; },900);
+      refreshPrefsUi();
+    });
+    if(resetPrefsBtn) resetPrefsBtn.addEventListener('click',function(){
+      try{ localStorage.removeItem(QRPREFS); }catch(_){}
+      refreshPrefsUi();
+    });
+    refreshPrefsUi();
     document.getElementById('qrClose').addEventListener('click',function(){ dlg.close(); });
     dlg.addEventListener('click',function(e){ if(e.target===dlg) dlg.close(); });
     document.getElementById('qrPng').addEventListener('click',function(){
-      try{ var qr=QRCodeGen.encode(cur.url,elEcl.value);
+      try{ var qr=QRCodeGen.encode(qrUrl(),elEcl.value);
         overlay(draw(qr,Math.max(2,num(elScale,8)),Math.max(0,num(elMargin,4))), elBg.value)
           .toBlob(function(bl){ dl('qr-'+cur.slug+'.png',bl); },'image/png');
       }catch(err){ alert(err.message); }
     });
     document.getElementById('qrSvg').addEventListener('click',function(){
-      try{ var qr=QRCodeGen.encode(cur.url,elEcl.value);
+      try{ var qr=QRCodeGen.encode(qrUrl(),elEcl.value);
         dl('qr-'+cur.slug+'.svg', new Blob([svg(qr,Math.max(2,num(elScale,8)),Math.max(0,num(elMargin,4)))],{type:'image/svg+xml'}));
       }catch(err){ alert(err.message); }
     });
@@ -621,5 +685,39 @@
         zipBtn.disabled=false; zipBtn.textContent=old;
       }).catch(function(err){ alert(err.message); zipBtn.disabled=false; zipBtn.textContent=old; });
     });
+
+    // Druckbarer QR-Etikettenbogen: baut ein Raster aus SVG-QRs (druckscharf) in
+    // #qrsheet und ruft window.print(); @media print blendet den Rest aus. Nutzt
+    // die aktuellen Dialog-Einstellungen (Farben, Rand, Logo). Markierte Zeilen
+    // zuerst – ist nichts markiert, kommen alle Links auf den Bogen.
+    var sheetBtn=document.getElementById('qrSheet'), sheet=document.getElementById('qrsheet');
+    if(sheetBtn && sheet){
+      sheetBtn.addEventListener('click',function(){
+        var checked=Array.prototype.slice.call(document.querySelectorAll('.rowchk:checked'))
+              .map(function(c){ return c.value; });
+        var items=Array.prototype.slice.call(document.querySelectorAll('[data-qr]'));
+        if(checked.length) items=items.filter(function(b){ return checked.indexOf(b.getAttribute('data-slug'))>=0; });
+        if(!items.length){ alert('Keine Links vorhanden.'); return; }
+        var ecl=elEcl?elEcl.value:'M', mg=Math.max(0,num(elMargin,4));
+        sheet.innerHTML='';
+        items.forEach(function(b){
+          var slug=b.getAttribute('data-slug')||'qr', url=b.getAttribute('data-qr'),
+              title=b.getAttribute('data-title')||'', qr;
+          try{ qr=QRCodeGen.encode(url, ecl); }catch(e){ return; }
+          var cell=document.createElement('div'); cell.className='qrsheet-cell';
+          var box=document.createElement('div'); box.className='qrsheet-qr'; box.innerHTML=svg(qr,8,mg);
+          cell.appendChild(box);
+          var s=document.createElement('div'); s.className='qrsheet-slug'; s.textContent=slug; cell.appendChild(s);
+          if(title){ var tt=document.createElement('div'); tt.className='qrsheet-title'; tt.textContent=title; cell.appendChild(tt); }
+          var u=document.createElement('div'); u.className='qrsheet-url'; u.textContent=url; cell.appendChild(u);
+          sheet.appendChild(cell);
+        });
+        document.body.classList.add('print-sheet');
+        window.print();
+      });
+      window.addEventListener('afterprint',function(){
+        document.body.classList.remove('print-sheet'); sheet.innerHTML='';
+      });
+    }
   }
 })();

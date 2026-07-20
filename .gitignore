@@ -14,6 +14,7 @@ backups/
 *.tmp
 
 # lokale Test-/Build-Artefakte
+CLAUDE.md
 test.env
 *.zip
 .DS_Store

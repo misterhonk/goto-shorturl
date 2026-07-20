@@ -5,6 +5,59 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+## [1.2.0] – 2026-07-20
+
+### Hinzugefügt
+- **QR-Design-Voreinstellungen:** im QR-Dialog lassen sich die aktuellen
+  Einstellungen (Farben, Modulgröße, Rand, Fehlerkorrektur, Logo GOTO/ohne) per
+  „Als Standard merken" speichern; neue QR-Codes öffnen dann direkt im gewohnten
+  Stil. „Standard zurücksetzen" entfernt die Voreinstellung wieder. Alles bleibt
+  **lokal im Browser** (localStorage), nichts wird gespeichert oder hochgeladen.
+- **API-Token nur zum Lesen (read-only):** beim Anlegen eines API-Tokens lässt
+  sich „Nur Lesen" aktivieren. Solche Tokens dürfen nur `GET` – schreibende
+  Aufrufe (`POST`/`PATCH`/`DELETE`) werden mit `403 read_only` abgelehnt. Ideal
+  für Reporting-/Monitoring-Skripte, die keine Links verändern sollen. Die
+  Token-Liste kennzeichnet Nur-Lese-Tokens.
+- **Link-Rotation / mehrere Ziele:** ein Kurzlink kann neben dem Hauptziel
+  **weitere Ziele** haben (Feld „Weitere Ziele – Rotation", eine URL je Zeile,
+  optional mit Gewicht wie „`https://ziel.de 3`"). Bei jedem Aufruf wird
+  **gewichtet zufällig** eines gewählt – ideal, um hinter einem einmal gedruckten
+  QR-Code das Ziel zu wechseln oder A/B zu verteilen. Zustandslos (kein
+  zusätzlicher Schreibzugriff), in Anlege-/Bearbeiten-Formular, Liste (Chip
+  „Rotation N") und API (`alts`) verfügbar.
+- **Druckbarer QR-Etikettenbogen:** neuer Knopf „QR-Etikettenbogen drucken"
+  (Export/Import-Werkzeuge) setzt die QR-Codes als **Raster mit Kürzel, Titel und
+  Kurzlink** auf eine druckfertige Seite (`@media print`, druckscharfe SVG-QRs) –
+  ideal, um viele Codes für Doku/Beschriftung auf einen Bogen zu bringen. Sind
+  Zeilen **markiert**, kommen nur diese auf den Bogen, sonst alle. Alles
+  client-seitig, nichts wird hochgeladen.
+- **Aktivierungsdatum („Aktiv ab"):** Gegenstück zum Ablaufdatum. Ein Link kann
+  vordatiert werden – vor dem Starttag ist er **noch nicht aktiv** (liefert die
+  Seite „Link noch nicht aktiv", oder – falls gesetzt – die **Ersatz-URL**, genau
+  wie beim Ablauf). Praktisch, um QR-Codes/Kurzlinks vorab zu drucken und erst zu
+  einem Stichtag scharfzuschalten. In Anlege-/Bearbeiten-Formular, Liste (Chip
+  „ab …") und API (`starts`, JJJJ-MM-TT) verfügbar.
+- **Quellen-/Kampagnen-Tracking für QR-Codes:** ein Kurzlink kann seine Aufrufe
+  nach **Quelle** aufschlüsseln (`…/kürzel?q=flyer`). Der QR-Dialog hat dafür ein
+  optionales Feld **„Quelle"**, das den Marker gleich in den erzeugten Code
+  einbaut – so lässt sich pro Plakat/Flyer/Kanal auswerten, woher die Scans
+  kommen. Der Klick-Verlauf zeigt eine **Aufrufe-nach-Quelle**-Aufschlüsselung
+  (auch aggregiert über alle Links). DSGVO-sparsam wie bisher: nur Zähler,
+  **keine IPs/Referrer**. Der Marker wird intern gezählt und **nicht** an die
+  Ziel-URL weitergereicht (die übrigen Query-Parameter wie `utm_*` schon).
+
+### Behoben
+- **Linkliste ragte bei schmalen Fenstern aus der Karte:** die Tabelle hatte
+  durch feste Spaltenbreiten eine Mindestbreite von rund 970 px und erzwang
+  darunter waagerechtes Scrollen der ganzen Seite. Die Ziel-Spalte ist jetzt
+  fließend (schrumpft mit Ellipse), und die Umschaltung auf die Karten-/
+  Zeilenansicht greift bereits ab 900 px statt erst ab 760 px.
+
+### Geändert
+- **Mobilansicht ohne graue Kacheln:** die Link-Zeilen stehen nicht mehr als
+  eigene, leicht graue Karte in der Gruppen-Karte, sondern flach mit feinen
+  Trennlinien – wie in der Desktop-Liste.
+
 ## [1.1.1] – 2026-07-10
 
 ### Geändert
@@ -276,7 +329,8 @@ Screenshot; README/QUICKSTART auf den aktuellen Stand gebracht.
   Drag & Drop, Live-Suche sowie Import/Export.
 - Datenbanklos – alle Daten in JSON-Dateien.
 
-[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/misterhonk/goto-shorturl/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/misterhonk/goto-shorturl/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/misterhonk/goto-shorturl/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/misterhonk/goto-shorturl/compare/v0.9.0...v1.0.0

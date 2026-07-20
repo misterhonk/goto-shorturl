@@ -31,6 +31,12 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 - **QR-Codes** pro Link — lokal erzeugt (kein externer Dienst), als **PNG oder SVG**,
   mit einstellbarer Fehlerkorrektur (L/M/Q/H), Größe, Rand, Farben und optionalem
   **Logo in der Mitte** (GOTO-Logo oder eigenes Bild; bleibt im Browser)
+- **QR-Design-Voreinstellungen**: die aktuellen QR-Einstellungen (Farben, Größe,
+  Rand, Fehlerkorrektur, Logo) per „Als Standard merken" sichern – neue Codes
+  öffnen im gewohnten Stil. Bleibt **lokal im Browser** (localStorage)
+- **QR-Etikettenbogen drucken**: alle (oder nur die markierten) QR-Codes als
+  **Raster mit Kürzel, Titel und Kurzlink** auf einer druckfertigen Seite –
+  druckscharfe SVG-QRs, komplett client-seitig
 - **QR-Code scannen** (Reverse-QR): einen bereits gedruckten GOTO-QR fotografieren/
   hochladen → GOTO erkennt das Kürzel und springt direkt ins Bearbeiten des
   Eintrags (Ziel ändern, ohne den Code neu zu drucken). Dekodierung **lokal im
@@ -41,8 +47,18 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
   **CSV-Export** der Tageswerte,
   mit **Statistik-Kacheln** (gesamt / heute / 7 Tage / Top-Link) und
   **Klick-Verlauf** als Diagramm (14 / 30 / 90 Tage)
+- **Quellen-/Kampagnen-Tracking**: `goto/kürzel?q=flyer` schlüsselt die Aufrufe
+  nach **Quelle** auf (Feld „Quelle" im QR-Dialog baut den Marker gleich ein).
+  DSGVO-sparsam wie bisher – nur Zähler, keine IPs/Referrer; der Marker wird
+  **nicht** an die Ziel-URL weitergereicht
 - **Titel / Notiz** je Link, **Ablaufdatum** (abgelaufene Links liefern `410 Gone`,
   wahlweise **Weiterleitung auf eine Ersatz-URL** statt der 410-Seite)
+- **Aktivierungsdatum („Aktiv ab")**: Links vordatieren – vor dem Starttag noch
+  nicht aktiv (eigene Seite oder Ersatz-URL). Praktisch, um QR-Codes vorab zu
+  drucken und erst zum Stichtag scharfzuschalten
+- **Link-Rotation / mehrere Ziele**: neben dem Hauptziel weitere Ziele mit
+  optionalem Gewicht; bei jedem Aufruf wird **gewichtet zufällig** eines gewählt
+  – für A/B-Verteilung oder um hinter einem gedruckten QR das Ziel zu wechseln
 - **Titel-Autofill**: Knopf holt den `<title>` der Zielseite (opt-in, SSRF-geschützt)
 - **Duplikat-Hinweis** beim Anlegen, wenn die Ziel-URL schon existiert
 - **Zwei-Faktor-Authentifizierung (TOTP)** fürs Admin, inkl. einmaliger
@@ -65,7 +81,8 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
 - **Import / Export** als JSON, **CSV-Import**, **Voll-Backup** (mit Klicks &
   Papierkorb) für den Server-Umzug
 - **HTTP-API (CRUD)** zum Anlegen, Auslesen, Ändern und Löschen von Links per
-  Skript, abgesichert über **API-Token**
+  Skript, abgesichert über **API-Token** – wahlweise **nur zum Lesen**
+  (read-only: nur `GET`, schreibende Aufrufe werden mit `403` abgelehnt)
 - **Social-Media-Vorschau**: beim Teilen eines Kurzlinks (WhatsApp, Slack, …)
   zeigt die Vorschau den **Titel aus dem Eintrag** samt GOTO-Vorschaubild
 - **Favicon & Theme-Color** im Marken-Design, gestaltete 404/410-Seiten
@@ -286,6 +303,11 @@ Felder für `POST`/`PATCH`:
 | `password` | – | Link-Passwort (nur Hash gespeichert; bei `PATCH`: `""` entfernt es) |
 | `preview` | – | `1`/`true` = Vorschau-Zwischenseite vor der Weiterleitung |
 | `expires_url` | – | Weiterleitungsziel nach Ablauf (statt `410`); `""` entfernt es |
+| `starts` | – | Aktivierungsdatum `JJJJ-MM-TT` (leer = sofort aktiv) |
+| `alts` | – | weitere Ziele für die Rotation: Liste `[{"url":…,"weight":2}]` oder Text mit einer URL je Zeile; `[]` entfernt sie |
+
+> **Nur-Lese-Tokens** dürfen ausschließlich `GET`. `POST`/`PATCH`/`DELETE`
+> antworten mit `403` und `{"error":"read_only"}`.
 
 ```bash
 # Anlegen
@@ -308,10 +330,11 @@ curl -X DELETE -H "Authorization: Bearer goto_…" \
 ```
 
 Antworten sind JSON: Erfolg `{ "ok": true, … }` (Anlegen: `201`, sonst `200`);
-Link-Objekte enthalten `slug`, `short_url`, `url`, `group`, `title`, `expires`,
-`created`, `protected`, `preview`, `expires_url`, `clicks` – Passwort-Hashes werden **nie**
+Link-Objekte enthalten `slug`, `short_url`, `url`, `group`, `title`, `starts`,
+`expires`, `created`, `protected`, `preview`, `expires_url`, `alts`, `clicks` –
+Passwort-Hashes werden **nie**
 ausgegeben. Fehler liefern passenden Status + `{ "ok": false, "error": "…" }`:
-`401` (Token), `404` (Kürzel unbekannt), `422` (URL/Kürzel ungültig),
+`401` (Token), `403` (`read_only`), `404` (Kürzel unbekannt), `422` (URL/Kürzel ungültig),
 `409` (Kürzel vergeben oder reserviert), `429` (Rate-Limit, **120
 Anfragen/Min.** je Token), `405` (Methode).
 
@@ -333,18 +356,31 @@ Anfragen/Min.** je Token), `405` (Methode).
       "url": "https://www.youtube.com/watch?v=…",
       "group": "Bachelorarbeit",
       "title": "Intro-Video",
+      "starts": "",
       "expires": "2026-12-31",
+      "expires_url": "",
       "created": 1781695468,
-      "pass": ""
+      "pass": "",
+      "preview": false,
+      "alts": [{ "url": "https://example.org/b", "weight": 2 }]
     }
   }
 }
 ```
 
-`clicks.json` — nur Zähler, sonst nichts:
+| Feld | Bedeutung |
+|---|---|
+| `starts` / `expires` | `JJJJ-MM-TT`; `""` = sofort aktiv bzw. kein Ablauf |
+| `expires_url` | Ersatzziel statt der 410-/„noch nicht aktiv"-Seite |
+| `pass` | bcrypt-Hash, `""` = ohne Passwort |
+| `preview` | `true` = Vorschau-Seite vor der Weiterleitung |
+| `alts` | weitere Ziele für die gewichtete Rotation (leer/fehlend = aus) |
+
+`clicks.json` — nur Zähler, sonst nichts: `t` gesamt, `d` je Tag,
+`s` je Quelle (aus `?q=…`):
 
 ```json
-{ "intro": 42 }
+{ "intro": { "t": 42, "d": { "2026-07-20": 5 }, "s": { "flyer": 12 } } }
 ```
 
 > Hinweis: Das alte flache Format `{ "kürzel": "url" }` wird weiterhin gelesen

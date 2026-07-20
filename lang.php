@@ -36,6 +36,18 @@ return [
     '– ohne Gruppe –'                    => '– no group –',
     'Ablaufdatum (optional)'             => 'Expiry date (optional)',
     'Ablauf entfernen'                   => 'Remove expiry',
+    'Aktiv ab (optional)'                => 'Active from (optional)',
+    'Weitere Ziele – Rotation (optional)' => 'Additional targets – rotation (optional)',
+    'eine URL je Zeile; optional Gewicht anhängen, z. B. „https://ziel.de 3“'
+        => 'one URL per line; optionally append a weight, e.g. “https://target.com 3”',
+    'Ist mindestens ein weiteres Ziel gesetzt, wird bei jedem Aufruf zufällig (gewichtet) eines gewählt.'
+        => 'If at least one additional target is set, one is picked at random (weighted) on each visit.',
+    'Rotation: Ziel wird bei jedem Aufruf gewählt' => 'Rotation: target chosen on each visit',
+    'Rotation'                           => 'Rotation',
+    'Startdatum entfernen'               => 'Remove start date',
+    'Vor diesem Tag ist der Link noch nicht aktiv' => 'Before this day the link is not active yet',
+    'Wird erst ab diesem Tag aktiv'      => 'Becomes active on this day',
+    'ab'                                 => 'from',
     'Titel / Notiz'                      => 'Title / note',
     'Hinzufügen'                         => 'Add',
     'Neue Gruppe / Projekt'              => 'New group / project',
@@ -75,6 +87,8 @@ return [
     'Export / Import'                    => 'Export / import',
     'Export – JSON herunterladen'        => 'Export – download JSON',
     'Alle QR-Codes (ZIP)'                => 'All QR codes (ZIP)',
+    'QR-Etikettenbogen drucken'          => 'Print QR label sheet',
+    'Ausgewählte oder alle Links als Etikettenbogen drucken' => 'Print selected or all links as a label sheet',
     'mit Bestand zusammenführen'         => 'merge with existing',
     'Importieren'                        => 'Import',
     'Passwort ändern'                    => 'Change password',
@@ -157,6 +171,9 @@ return [
     'Token kopieren'                     => 'Copy token',
     'Token-Name'                         => 'Token name',
     'z. B. Doku-Skript'                  => 'e.g. docs script',
+    'Nur Lesen (read-only)'              => 'Read only',
+    'Nur-Lese-Token'                     => 'Read-only token',
+    'nur Lesen'                          => 'read only',
     'Token erstellen'                    => 'Create token',
     'Widerrufen'                         => 'Revoke',
     'erstellt %s'                        => 'created %s',
@@ -300,6 +317,15 @@ return [
     'Klick-Verlauf anzeigen'             => 'Show click history',
     'Noch keine Aufrufe im Zeitraum.'    => 'No clicks in this range.',
     'Zeitraum'                           => 'Time range',
+    'Als Standard merken'                => 'Save as default',
+    'Standard zurücksetzen'              => 'Reset default',
+    'Aktuelle Einstellungen (Farben, Größe, Rand, Fehlerkorrektur, Logo) für neue QR-Codes merken'
+        => 'Remember the current settings (colours, size, margin, error correction, logo) for new QR codes',
+    'Aufrufe nach Quelle'                => 'Clicks by source',
+    'Quelle (für Statistik)'             => 'Source (for stats)',
+    'z. B. flyer, plakat'                => 'e.g. flyer, poster',
+    'Der QR zählt Aufrufe unter dieser Quelle – sichtbar im Klick-Verlauf. Der Marker wird nicht an das Ziel weitergegeben.'
+        => 'The QR counts clicks under this source – shown in the click history. The marker is not passed on to the target.',
 
     // Bot-Vorschau / Link-Preview (index.php)
     'Kurzlink'                           => 'Short link',
@@ -380,4 +406,7 @@ return [
     'Link abgelaufen'                    => 'Link expired',
     'Diese Kurz-URL existiert nicht (mehr).' => 'This short URL does not exist (anymore).',
     'Dieser Link ist abgelaufen.'        => 'This link has expired.',
+    'Noch nicht aktiv'                   => 'Not active yet',
+    'Link noch nicht aktiv'              => 'Link not active yet',
+    'Dieser Link ist noch nicht aktiv.'  => 'This link is not active yet.',
 ];

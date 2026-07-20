@@ -12,10 +12,11 @@ declare(strict_types=1);
  *      GET              Liste aller Links (mit Klick-Summen)
  *      GET    ?slug=…   Details eines Links inkl. Tages-Klickwerten
  *      POST             Anlegen: url (Pflicht), slug, group, title,
- *                       expires (JJJJ-MM-TT), password, preview
+ *                       expires (JJJJ-MM-TT), starts (JJJJ-MM-TT), password, preview,
+ *                       alts (Rotation: Array [{url,weight}] oder Text, eine URL je Zeile)
  *      PATCH            Ändern: slug (Kennung) + beliebige der Felder
- *                       url, title, group, expires, password (""=weg),
- *                       preview, newslug (umbenennen)
+ *                       url, title, group, expires, starts, password (""=weg),
+ *                       preview, alts, newslug (umbenennen)
  *      DELETE ?slug=…   In den Papierkorb (Wiederherstellen im Admin)
  *
  *  Antwort ist immer JSON ({ ok:true, … } bzw. { ok:false, error }).
@@ -84,6 +85,12 @@ if (!is_array($rec) || !hash_equals((string) ($rec['h'] ?? ''), hash('sha256', $
     respond(401, ['ok' => false, 'error' => 'unauthorized', 'message' => 'Invalid API token.']);
 }
 
+/* ---- Scope: Nur-Lese-Token dürfen keine schreibenden Methoden ----- */
+
+if (($rec['scope'] ?? 'write') === 'read' && $method !== 'GET') {
+    respond(403, ['ok' => false, 'error' => 'read_only', 'message' => 'This token is read-only; only GET is allowed.']);
+}
+
 /* ---- Rate-Limit (pro Token, je Minute) --------------------------- */
 
 $min = (int) (time() / 60);
@@ -114,10 +121,12 @@ function link_out(string $slug, array $l, array $clicks, bool $withDays = false)
         'group'     => (string) $l['group'],
         'title'     => (string) $l['title'],
         'expires'   => (string) $l['expires'],
+        'starts'    => (string) ($l['starts'] ?? ''),
         'created'   => (int) $l['created'],
         'protected'   => ($l['pass'] ?? '') !== '',
         'preview'     => !empty($l['preview']),
         'expires_url' => (string) ($l['expires_url'] ?? ''),
+        'alts'        => normalize_alts($l['alts'] ?? []),
         'clicks'      => clicks_total($clicks, $slug),
     ];
     if ($withDays) {
@@ -179,10 +188,14 @@ if ($method === 'PATCH') {
     }
     if (array_key_exists('title', $in))   $l['title'] = clean_title((string) $in['title']);
     if (array_key_exists('expires', $in)) $l['expires'] = clean_date((string) $in['expires']);
+    if (array_key_exists('starts', $in))  $l['starts'] = clean_date((string) $in['starts']);
     if (array_key_exists('preview', $in)) $l['preview'] = filter_var($in['preview'], FILTER_VALIDATE_BOOL);
     if (array_key_exists('expires_url', $in)) {
         $eu = trim((string) $in['expires_url']);
         $l['expires_url'] = ($eu === '' || valid_url($eu)) ? $eu : ($l['expires_url'] ?? '');
+    }
+    if (array_key_exists('alts', $in)) {
+        $l['alts'] = is_string($in['alts']) ? parse_alts_text($in['alts']) : normalize_alts($in['alts']);
     }
     if (array_key_exists('password', $in)) {
         $pw = (string) $in['password'];
@@ -234,6 +247,7 @@ $slug    = clean_slug((string) ($in['slug'] ?? ''));
 $group   = clean_group((string) ($in['group'] ?? ''));
 $title   = clean_title((string) ($in['title'] ?? ''));
 $expires = clean_date((string) ($in['expires'] ?? ''));
+$starts  = clean_date((string) ($in['starts'] ?? ''));
 $linkpw  = (string) ($in['password'] ?? '');   // optional: Link-Passwort (wird gehasht)
 
 if (!valid_url($url)) {
@@ -251,11 +265,13 @@ if ($group !== '' && !in_array($group, $data['groups'], true)) $data['groups'][]
 
 $expUrlIn = trim((string) ($in['expires_url'] ?? ''));
 if (!valid_url($expUrlIn)) $expUrlIn = '';
+$altsIn = $in['alts'] ?? null;
+$altsIn = is_string($altsIn) ? parse_alts_text($altsIn) : normalize_alts(is_array($altsIn) ? $altsIn : []);
 $data['links'][$slug] = ['url' => $url, 'group' => $group, 'title' => $title,
-                         'expires' => $expires, 'created' => time(),
+                         'expires' => $expires, 'starts' => $starts, 'created' => time(),
                          'pass' => ($linkpw !== '') ? password_hash($linkpw, PASSWORD_DEFAULT) : '',
                          'preview' => filter_var($in['preview'] ?? false, FILTER_VALIDATE_BOOL),
-                         'expires_url' => $expUrlIn];
+                         'expires_url' => $expUrlIn, 'alts' => $altsIn];
 
 if (!save_data($data)) {
     respond(500, ['ok' => false, 'error' => 'write_failed', 'message' => 'Could not save – check write permissions for urls.json.']);
@@ -269,6 +285,8 @@ respond(201, [
     'group'     => $group,
     'title'     => $title,
     'expires'     => $expires,
+    'starts'      => $starts,
+    'alts'        => $altsIn,
     'protected'   => ($linkpw !== ''),
     'preview'     => filter_var($in['preview'] ?? false, FILTER_VALIDATE_BOOL),
     'expires_url' => $expUrlIn,

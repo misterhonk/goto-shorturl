@@ -13,12 +13,14 @@ declare(strict_types=1);
  *    { "groups": ["Projekt A"],
  *      "links": { "slug": {
  *         "url":"", "group":"", "title":"", "expires":"YYYY-MM-DD",
+ *         "starts":"YYYY-MM-DD",    // vor diesem Tag noch nicht aktiv ("" = sofort)
  *         "created":0, "pass":"",   // pass: bcrypt-Hash, ""=ohne Passwort
- *         "preview":false           // true = Vorschau-Seite vor der Weiterleitung
+ *         "preview":false,          // true = Vorschau-Seite vor der Weiterleitung
+ *         "alts":[{"url":"","weight":1}]  // weitere Ziele (gewichtete Rotation)
  *      } } }
  * ------------------------------------------------------------------ */
 
-const GOTO_VERSION = '1.1.1';
+const GOTO_VERSION = '1.2.0';
 
 @ini_set('display_errors', '0');   // Produktion: keine PHP-Fehler an Besucher ausgeben
 
@@ -82,11 +84,64 @@ function clean_text(string $s, int $max): string {
 function clean_group(string $s): string { return clean_text($s, 40); }
 function clean_title(string $s): string { return clean_text($s, 80); }
 
+/* Quellen-/Kampagnen-Marker (?q=…): kleiner, dateisystem-/JSON-sicherer Bezeichner.
+ * Datensparsam – der Name wird vom Nutzer selbst vergeben (kein PII). */
+function clean_source(string $s): string {
+    $s = strtolower(trim($s));
+    $s = preg_replace('/[^a-z0-9._\-]+/', '-', $s) ?? '';
+    $s = trim($s, '-');
+    return substr($s, 0, 32);
+}
+
 function clean_date(string $s): string {
     $s = trim($s);
     if ($s === '') return '';
     $d = DateTime::createFromFormat('Y-m-d', $s);
     return ($d && $d->format('Y-m-d') === $s) ? $s : '';
+}
+
+/* ---- Rotation / mehrere Ziele ------------------------------------ */
+
+// Weitere Ziele auf gültige [{url,weight}] normalisieren (max. 20, Gewicht 1–100)
+function normalize_alts($raw): array {
+    if (!is_array($raw)) return [];
+    $out = [];
+    foreach ($raw as $a) {
+        $u = is_array($a) ? (string) ($a['url'] ?? '') : (string) $a;
+        $u = trim($u);
+        if (!valid_url($u)) continue;
+        $w = is_array($a) ? (int) ($a['weight'] ?? 1) : 1;
+        $w = max(1, min(100, $w));
+        $out[] = ['url' => $u, 'weight' => $w];
+        if (count($out) >= 20) break;
+    }
+    return $out;
+}
+
+// Freitext (eine URL je Zeile, optional abschließendes Gewicht) → [{url,weight}]
+function parse_alts_text(string $text): array {
+    $out = [];
+    foreach (preg_split('/\r\n|\r|\n/', $text) as $line) {
+        $line = trim($line);
+        if ($line === '') continue;
+        $weight = 1;
+        if (preg_match('/^(.*\S)\s+(\d{1,3})$/', $line, $m)) { $line = $m[1]; $weight = (int) $m[2]; }
+        $out[] = ['url' => $line, 'weight' => $weight];
+    }
+    return normalize_alts($out);
+}
+
+// Zielauswahl: gewichteter Zufall über das Primärziel (Gewicht 1) + weitere Ziele.
+// Zustandslos – kein zusätzlicher Schreibzugriff im Hot-Path.
+function weighted_pick(string $primary, array $alts): string {
+    $pool = [];
+    if (valid_url($primary)) $pool[] = ['url' => $primary, 'weight' => 1];
+    foreach (normalize_alts($alts) as $a) $pool[] = $a;
+    if (!$pool) return $primary;
+    $total = 0; foreach ($pool as $p) $total += $p['weight'];
+    $r = random_int(1, $total);
+    foreach ($pool as $p) { $r -= $p['weight']; if ($r <= 0) return $p['url']; }
+    return $pool[0]['url'];
 }
 
 function random_slug(array $links): string {
@@ -121,15 +176,18 @@ function normalize_data($raw): array {
         $group   = is_array($item) ? clean_group((string) ($item['group'] ?? '')) : '';
         $title   = is_array($item) ? clean_title((string) ($item['title'] ?? '')) : '';
         $expires = is_array($item) ? clean_date((string) ($item['expires'] ?? '')) : '';
+        $starts  = is_array($item) ? clean_date((string) ($item['starts'] ?? '')) : '';
         $created = is_array($item) ? (int) ($item['created'] ?? 0) : 0;
         $pass    = is_array($item) ? (string) ($item['pass'] ?? '') : '';
         $preview = is_array($item) && !empty($item['preview']);
         $expUrl  = is_array($item) ? (string) ($item['expires_url'] ?? '') : '';
         if (!valid_url($expUrl)) $expUrl = '';
+        $alts    = is_array($item) ? normalize_alts($item['alts'] ?? []) : [];
         if ($group !== '' && !in_array($group, $groups, true)) $groups[] = $group;
         $links[$slug] = ['url' => $url, 'group' => $group, 'title' => $title,
-                         'expires' => $expires, 'created' => $created,
-                         'pass' => $pass, 'preview' => $preview, 'expires_url' => $expUrl];
+                         'expires' => $expires, 'starts' => $starts, 'created' => $created,
+                         'pass' => $pass, 'preview' => $preview, 'expires_url' => $expUrl,
+                         'alts' => $alts];
     }
     return ['groups' => $groups, 'links' => $links];
 }
@@ -178,6 +236,13 @@ function clicks_total(array $clicks, string $slug): int {
 function clicks_days(array $clicks, string $slug): array {
     $c = $clicks[$slug] ?? null;
     return (is_array($c) && isset($c['d']) && is_array($c['d'])) ? $c['d'] : [];
+}
+// Quellen-Aufschlüsselung { quelle: n } (aus ?q=…), absteigend sortiert
+function clicks_sources(array $clicks, string $slug): array {
+    $c = $clicks[$slug] ?? null;
+    $s = (is_array($c) && isset($c['s']) && is_array($c['s'])) ? $c['s'] : [];
+    arsort($s);
+    return $s;
 }
 
 function load_trash(): array  { return load_json(TRASH_FILE); }

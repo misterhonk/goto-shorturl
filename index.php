@@ -33,6 +33,7 @@ if ($slug === '') {
 
 $target    = null;
 $expired   = false;
+$notyet    = false;
 $linkTitle = '';
 $linkPass  = '';
 $linkPrev  = false;
@@ -43,21 +44,25 @@ if ($slug !== '' && isset($links[$slug])) {
     if (is_array($entry)) {
         $url       = (string) ($entry['url'] ?? '');
         $expires   = (string) ($entry['expires'] ?? '');
+        $starts    = (string) ($entry['starts'] ?? '');
         $linkTitle = (string) ($entry['title'] ?? '');
         $linkPass  = (string) ($entry['pass'] ?? '');
         $linkPrev  = !empty($entry['preview']);
         $expUrl    = (string) ($entry['expires_url'] ?? '');
-        if ($expires !== '' && $expires < date('Y-m-d')) $expired = true;
-        elseif ($url !== '')                              $target = $url;
+        $alts      = (isset($entry['alts']) && is_array($entry['alts'])) ? $entry['alts'] : [];
+        if ($expires !== '' && $expires < date('Y-m-d'))     $expired = true;
+        elseif ($starts !== '' && $starts > date('Y-m-d'))   $notyet  = true;
+        elseif ($url !== '')                                 $target  = ($alts ? weighted_pick($url, $alts) : $url);
     } else {
         $target = (string) $entry;
     }
 }
 
-// Abgelaufen, aber mit Ersatz-URL: dorthin weiterleiten (kein 410).
-// Nur echte http(s)-Ziele; Query-Parameter des Aufrufs werden mitgereicht.
+// Nicht aktiv (abgelaufen ODER noch nicht gestartet), aber mit Ersatz-URL:
+// dorthin weiterleiten statt der Fehlerseite. Nur echte http(s)-Ziele;
+// Query-Parameter des Aufrufs werden mitgereicht.
 // (merge_query() ist eine Top-Level-Funktion und daher hier bereits verfügbar.)
-if ($expired && $expUrl !== ''
+if (($expired || $notyet) && $expUrl !== ''
     && in_array(strtolower((string) parse_url($expUrl, PHP_URL_SCHEME)), ['http', 'https'], true)) {
     header('Referrer-Policy: no-referrer');
     header('Location: ' . merge_query($expUrl), true, 302);
@@ -71,6 +76,9 @@ if ($target !== null) {
 }
 
 if (is_https()) header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+
+// Optionaler Quellen-/Kampagnen-Marker (?q=…) – wird DSGVO-sparsam nur als Zähler erfasst
+$clickSource = clean_source((string) ($_GET['q'] ?? ''));
 
 // Passwortgeschützte Links: statt 302 zuerst die Passwort-Seite (weiter unten)
 $protected = $target !== null && $linkPass !== '';
@@ -92,6 +100,7 @@ $isPreviewBot = $target !== null && !$protected && preg_match(
 function merge_query(string $target): string {
     $params = $_GET;
     unset($params['slug']);   // internes Routing-Artefakt (Rewrite-Variante B)
+    unset($params['q']);      // GOTO-Quellen-Marker – wird intern gezählt, nicht ans Ziel gereicht
     if (!$params) return $target;
     $frag = '';
     if (($p = strpos($target, '#')) !== false) {
@@ -102,14 +111,14 @@ function merge_query(string $target): string {
          . http_build_query($params) . $frag;
 }
 
-// Aufruf zählen (reiner Zähler, datensparsam)
-function count_click(string $slug): void {
+// Aufruf zählen (reiner Zähler, datensparsam). $source = optionaler Quellen-Marker (?q=…)
+function count_click(string $slug, string $source = ''): void {
     $fp = @fopen(CLICKS_FILE, 'c+');
     if ($fp && flock($fp, LOCK_EX)) {
         $cur    = stream_get_contents($fp);
         $clicks = $cur ? json_decode($cur, true) : [];
         if (!is_array($clicks)) $clicks = [];
-        // Format: { slug: { t: gesamt, d: { "YYYY-MM-DD": n } } }  (Alt-Format int wird migriert)
+        // Format: { slug: { t: gesamt, d: { "YYYY-MM-DD": n }, s: { quelle: n } } }  (Alt-Format int wird migriert)
         $rec = $clicks[$slug] ?? null;
         if (!is_array($rec)) $rec = ['t' => (int) ($rec ?? 0), 'd' => []];
         $rec['t'] = (int) ($rec['t'] ?? 0) + 1;
@@ -118,6 +127,13 @@ function count_click(string $slug): void {
         if (count($rec['d']) > 90) {                       // nur letzte 90 Tage behalten
             $cut = date('Y-m-d', time() - 90 * 86400);
             foreach ($rec['d'] as $day => $n) if ($day < $cut) unset($rec['d'][$day]);
+        }
+        if ($source !== '') {                              // Quellen-Zähler (max. 50 verschiedene je Link)
+            $s = (isset($rec['s']) && is_array($rec['s'])) ? $rec['s'] : [];
+            if (isset($s[$source]) || count($s) < 50) {
+                $s[$source] = (int) ($s[$source] ?? 0) + 1;
+                $rec['s'] = $s;
+            }
         }
         $clicks[$slug] = $rec;
         rewind($fp);
@@ -130,7 +146,7 @@ function count_click(string $slug): void {
 }
 
 if ($target !== null && !$isPreviewBot && !$protected && !$linkPrev) {
-    count_click($slug);
+    count_click($slug, $clickSource);
     header('Referrer-Policy: no-referrer');
     header('Location: ' . merge_query($target), true, 302);
     exit;
@@ -241,7 +257,7 @@ if ($protected) {
                            (int) ceil(((int) $rec['until'] - $now) / 60));
         } elseif (password_verify((string) $_POST['linkpw'], $linkPass)) {
             if (isset($att[$attKey])) { unset($att[$attKey]); save_json($attFile, $att); }
-            count_click($slug);
+            count_click($slug, $clickSource);
             header('Referrer-Policy: no-referrer');
             header('Location: ' . merge_query($target), true, 302);
             exit;
@@ -294,7 +310,7 @@ if ($target !== null && !$isPreviewBot) {
     /* Vorschau-Zwischenseite (opt-in je Link): zeigt Titel und Ziel-Domain,
      * leitet nach 3 Sekunden automatisch weiter (Button für Sofort-Klick).
      * Der Aufruf zählt hier – der Besucher hat den Link geöffnet. */
-    count_click($slug);
+    count_click($slug, $clickSource);
     $dest    = merge_query($target);
     $host    = (string) parse_url($target, PHP_URL_HOST);
     $pgTitle = $linkTitle !== '' ? $linkTitle : 'GOTO – ' . $t('Kurzlink');
@@ -337,9 +353,13 @@ if ($target !== null) {
 }
 
 http_response_code($expired ? 410 : 404);
-$msg  = $expired
-    ? $t('Dieser Link ist abgelaufen.')
-    : $t('Diese Kurz-URL existiert nicht (mehr).');
-$body = '<h1>' . $ee($expired ? $t('Link abgelaufen') : $t('Kurz-URL nicht gefunden')) . '</h1>'
+if ($expired) {
+    $head = $t('Link abgelaufen');    $msg = $t('Dieser Link ist abgelaufen.');           $tab = $t('Abgelaufen');
+} elseif ($notyet) {
+    $head = $t('Link noch nicht aktiv'); $msg = $t('Dieser Link ist noch nicht aktiv.');    $tab = $t('Noch nicht aktiv');
+} else {
+    $head = $t('Kurz-URL nicht gefunden'); $msg = $t('Diese Kurz-URL existiert nicht (mehr).'); $tab = $t('Nicht gefunden');
+}
+$body = '<h1>' . $ee($head) . '</h1>'
       . '<p>' . $ee($msg) . '</p>';
-goto_page($lang, $dirUrl, $expired ? $t('Abgelaufen') : $t('Nicht gefunden'), '', $body, $nonce);
+goto_page($lang, $dirUrl, $tab, '', $body, $nonce);
