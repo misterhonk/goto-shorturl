@@ -510,15 +510,23 @@
       if(p.logo==='goto' && elLogo){
         elLogo.value='goto';
         var im=new Image(); im.onload=function(){ logoImg=im; logoOn(); render(); }; im.src='assets/favicon.svg';
+      } else if(elLogo){
+        // Voreinstellung „ohne Logo" muss ein zuvor gewähltes Logo auch wieder
+        // abräumen – sonst klebt es am nächsten QR, während die Fehlerkorrektur
+        // schon zurückgesetzt ist (Logo bei ECL M/L = kaum noch scannbar).
+        elLogo.value='none'; logoImg=null;
+        if(elLogoHint) elLogoHint.hidden=true;
       }
     }
-    // Quellen-Marker (?q=…) an die QR-Ziel-URL hängen; wie serverseitig bereinigt
+    // Quellen-Marker (?gq=…) an die QR-Ziel-URL hängen; wie serverseitig bereinigt
+    // (Gegenstück: clean_source() in lib.php – beide Seiten müssen gleich bleiben,
+    //  der Wert steckt danach in gedruckten Codes).
     function cleanSource(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9._\-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,32); }
     function qrUrl(){
       var q=elSource?cleanSource(elSource.value):'';
       if(elSourceHint) elSourceHint.hidden=!q;
       if(!q) return cur.url;
-      return cur.url+(cur.url.indexOf('?')<0?'?':'&')+'q='+encodeURIComponent(q);
+      return cur.url+(cur.url.indexOf('?')<0?'?':'&')+'gq='+encodeURIComponent(q);
     }
     function draw(qr,scale,margin){
       var n=qr.size, dim=(n+margin*2)*scale;
@@ -627,6 +635,10 @@
       refreshPrefsUi();
     });
     refreshPrefsUi();
+    // Voreinstellungen schon beim Laden anwenden: ZIP-Export und Etikettenbogen
+    // lesen die Dialogfelder direkt und sollen nicht auf das erste Öffnen des
+    // QR-Dialogs warten müssen.
+    applyPrefs();
     document.getElementById('qrClose').addEventListener('click',function(){ dlg.close(); });
     dlg.addEventListener('click',function(e){ if(e.target===dlg) dlg.close(); });
     document.getElementById('qrPng').addEventListener('click',function(){
@@ -699,6 +711,10 @@
         if(checked.length) items=items.filter(function(b){ return checked.indexOf(b.getAttribute('data-slug'))>=0; });
         if(!items.length){ alert('Keine Links vorhanden.'); return; }
         var ecl=elEcl?elEcl.value:'M', mg=Math.max(0,num(elMargin,4));
+        // Aufräumen auch am Anfang: feuert „afterprint" mal nicht (manche
+        // Webviews), bliebe der Bogen sonst scharf und der nächste normale
+        // Ausdruck der Seite bekäme die alten Etiketten.
+        document.body.classList.remove('print-sheet');
         sheet.innerHTML='';
         items.forEach(function(b){
           var slug=b.getAttribute('data-slug')||'qr', url=b.getAttribute('data-qr'),
@@ -713,7 +729,9 @@
           sheet.appendChild(cell);
         });
         document.body.classList.add('print-sheet');
-        window.print();
+        // Kurz warten: die Logo-Grafik im SVG ist eine data-URI und wird
+        // asynchron dekodiert – sonst fehlt sie im ersten Ausdruck.
+        setTimeout(function(){ window.print(); },60);
       });
       window.addEventListener('afterprint',function(){
         document.body.classList.remove('print-sheet'); sheet.innerHTML='';

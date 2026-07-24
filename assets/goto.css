@@ -408,7 +408,7 @@ dialog.clkdlg{width:min(520px,94vw)}
      transform:translate(-50%,-130%);box-shadow:0 4px 14px rgba(0,0,0,.25);opacity:0;transition:opacity .12s}
 .charttip.on{opacity:1}
 
-/* Aufrufe nach Quelle (?q=…): kleine Balkenliste unter dem Chart */
+/* Aufrufe nach Quelle (?gq=…): kleine Balkenliste unter dem Chart */
 .clksrc{margin-top:1rem;border-top:1px solid var(--line);padding-top:.9rem}
 .clksrc-title{font-size:.78rem;font-weight:600;color:var(--muted);margin:0 0 .6rem}
 .clksrc-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.45rem}
@@ -479,6 +479,9 @@ dialog.clkdlg{width:min(520px,94vw)}
   tr{display:block;position:relative;background:none;border:0;
      border-top:1px solid var(--line);padding:.9rem 0 .9rem 3rem}
   table tr:first-child{border-top:0}
+  /* display:block auf tr schlägt sonst das [hidden] des Browsers – Suche und
+     Filter (app.js setzt r.hidden) würden hier keine Zeile mehr ausblenden. */
+  tr[hidden]{display:none}
   table tr:hover td{background:none}
   td{display:block;border:0;padding:.2rem 0}
   .cbcell{position:absolute;left:0;top:50%;transform:translateY(-50%);width:auto;margin:0}

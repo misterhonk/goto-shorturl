@@ -493,7 +493,10 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
         $short = $base . $slug;
         $url   = $l['url'];
         $host  = host_of($url);
-        $hay   = strtolower($slug . ' ' . $l['title'] . ' ' . $url . ' ' . $l['group']);
+        // Rotationsziele mit in den Suchindex: sonst findet man den Link nicht,
+        // der auf eine abzuschaltende Zielseite rotiert.
+        $altUrls = implode(' ', array_column(normalize_alts($l['alts'] ?? []), 'url'));
+        $hay   = strtolower($slug . ' ' . $l['title'] . ' ' . $url . ' ' . $altUrls . ' ' . $l['group']);
         ?>
         <?php if ($editing === $slug): ?>
         <tr class="editrow">
@@ -816,24 +819,37 @@ function check_links(array $links): array {
     if (!function_exists('curl_multi_init')) return $out;
     $mh = curl_multi_init();
     $handles = [];
+    $codes   = [];   // slug => [code, …] – Primärziel und alle Rotationsziele
     foreach ($links as $slug => $l) {
-        $url  = (string) ($l['url'] ?? '');
-        $host = (string) parse_url($url, PHP_URL_HOST);
-        if (!host_is_public($host)) { $out[$slug] = ['code' => -1, 't' => time()]; continue; }
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_NOBODY => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 4,
-            CURLOPT_TIMEOUT => 8, CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_USERAGENT => 'GOTO-LinkCheck/1.0',
-        ]);
-        $handles[$slug] = $ch;
-        curl_multi_add_handle($mh, $ch);
+        // Auch die Rotationsziele prüfen: sie werden echten Besuchern ausgeliefert,
+        // ein totes Alt-Ziel bliebe sonst unsichtbar.
+        $urls = array_merge([(string) ($l['url'] ?? '')],
+                            array_column(normalize_alts($l['alts'] ?? []), 'url'));
+        foreach ($urls as $i => $url) {
+            $host = (string) parse_url($url, PHP_URL_HOST);
+            if (!host_is_public($host)) { $codes[$slug][] = -1; continue; }
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_NOBODY => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 4,
+                CURLOPT_TIMEOUT => 8, CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_USERAGENT => 'GOTO-LinkCheck/1.0',
+            ]);
+            $handles[$slug . "\0" . $i] = $ch;
+            curl_multi_add_handle($mh, $ch);
+        }
     }
     do { $st = curl_multi_exec($mh, $run); if ($run) curl_multi_select($mh, 1.0); } while ($run && $st === CURLM_OK);
-    foreach ($handles as $slug => $ch) {
-        $out[$slug] = ['code' => (int) curl_getinfo($ch, CURLINFO_HTTP_CODE), 't' => time()];
+    foreach ($handles as $key => $ch) {
+        [$slug, ] = explode("\0", $key, 2);
+        $codes[$slug][] = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_multi_remove_handle($mh, $ch);
         curl_close($ch);
+    }
+    // Ein totes Ziel genügt für die Warnung; sonst zählt der Code des Primärziels.
+    foreach ($codes as $slug => $list) {
+        $code = $list[0] ?? 0;
+        foreach ($list as $c) if (link_dead($c)) { $code = $c; break; }
+        $out[$slug] = ['code' => $code, 't' => time()];
     }
     curl_multi_close($mh);
     return $out;
@@ -913,7 +929,14 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
     $linkpw  = (string) ($_POST['linkpw'] ?? '');   // Link-Passwort (optional, wird gehasht)
     $expUrl  = trim((string) ($_POST['expires_url'] ?? ''));   // Ziel nach Ablauf (optional)
     if (!valid_url($expUrl)) $expUrl = '';
-    $alts    = parse_alts_text((string) ($_POST['alts'] ?? ''));   // weitere Ziele (Rotation)
+    $altsRaw = req_str($_POST['alts'] ?? null);                    // weitere Ziele (Rotation)
+    $alts    = parse_alts_text($altsRaw);
+    // Zeilen, die keine gültige http(s)-URL sind, verwirft parse_alts_text still –
+    // Anzahl merken, damit das Formular es zurückmeldet statt sie verschwinden zu lassen.
+    $altsDropped = max(0, count(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $altsRaw)),
+        static fn($l) => $l !== '')) - count($alts));
+    $altsNote = $altsDropped > 0
+        ? ' ' . t('(%d Rotationsziel(e) ohne gültige http(s)-URL ignoriert.)', $altsDropped) : '';
     $groupValid = ($group === '' || in_array($group, $data['groups'], true)) ? $group : '';
 
     if ($action === 'add') {
@@ -931,7 +954,7 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
                     'pass' => ($linkpw !== '') ? password_hash($linkpw, PASSWORD_DEFAULT) : '',
                     'preview' => !empty($_POST['preview']), 'expires_url' => $expUrl, 'alts' => $alts];
                 save_data($data)
-                    ? flash(t('„%s“ angelegt.', $slug), 'success', $base . $slug)
+                    ? flash(t('„%s“ angelegt.', $slug) . $altsNote, 'success', $base . $slug)
                     : flash(t('Konnte nicht speichern – Schreibrechte für urls.json prüfen.'));
             }
         }
@@ -944,13 +967,16 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
         elseif ($newslug !== $slug && isset($data['links'][$newslug])) flash(t('„%s“ ist bereits vergeben.', $newslug));
         else {
             $entry = $data['links'][$slug];
-            $entry['url'] = $url; $entry['title'] = $title; $entry['expires'] = $expires; $entry['starts'] = $starts;
+            $entry['url'] = $url; $entry['title'] = $title; $entry['expires'] = $expires;
+            // starts/alts nur anfassen, wenn das Formular sie überhaupt geschickt hat –
+            // ein alter Tab (Stand vor 1.2.0) würde sie sonst beim Speichern leeren.
+            if (array_key_exists('starts', $_POST)) $entry['starts'] = $starts;
             // Link-Passwort: Checkbox entfernt es, neues ersetzt es, leer = unverändert
             if (!empty($_POST['pwclear'])) $entry['pass'] = '';
             elseif ($linkpw !== '')        $entry['pass'] = password_hash($linkpw, PASSWORD_DEFAULT);
             $entry['preview']     = !empty($_POST['preview']);
             $entry['expires_url'] = $expUrl;
-            $entry['alts']        = $alts;
+            if (array_key_exists('alts', $_POST)) $entry['alts'] = $alts;
             if ($newslug === $slug) {
                 $data['links'][$slug] = $entry;
             } else {
@@ -962,7 +988,7 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
                 $cl = load_clicks();
                 if (isset($cl[$slug])) { $cl[$newslug] = $cl[$slug]; unset($cl[$slug]); save_clicks($cl); }
             }
-            save_data($data) ? flash(t('„%s“ aktualisiert.', $newslug), 'success')
+            save_data($data) ? flash(t('„%s“ aktualisiert.', $newslug) . $altsNote, 'success')
                              : flash(t('Konnte nicht speichern.'));
         }
     } elseif ($action === 'move') {
@@ -1089,8 +1115,10 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
             if ($g !== '' && !in_array($g, $data['groups'], true)) $data['groups'][] = $g;
             $data['links'][$slug] = ['url' => (string) ($it['url'] ?? ''), 'group' => $g,
                 'title' => (string) ($it['title'] ?? ''), 'expires' => (string) ($it['expires'] ?? ''),
+                'starts' => (string) ($it['starts'] ?? ''),
                 'created' => (int) ($it['created'] ?? 0), 'pass' => (string) ($it['pass'] ?? ''),
-                'preview' => !empty($it['preview']), 'expires_url' => (string) ($it['expires_url'] ?? '')];
+                'preview' => !empty($it['preview']), 'expires_url' => (string) ($it['expires_url'] ?? ''),
+                'alts' => normalize_alts($it['alts'] ?? [])];
             $clrec = $it['clicks'] ?? 0;
             unset($tr[$slug]);
             $cl = load_clicks(); if ($clrec) $cl[$slug] = $clrec; save_clicks($cl);

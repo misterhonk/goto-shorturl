@@ -5,6 +5,45 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+### Geändert
+- **Quellen-Marker heißt jetzt `?gq=`** (vorher `?q=`): `q` ist der verbreitetste
+  Such-Parameter im Web und wurde von GOTO für *alle* Links geschluckt, statt ihn
+  wie dokumentiert ans Ziel durchzureichen. Nur noch `gq` wird intern gezählt und
+  entfernt; `q` läuft wieder durch. QR-Codes aus 1.2.0 mit `?q=` werden
+  übergangsweise weiterhin gezählt.
+- **Vordatierte Links antworten mit `403`** statt `404` – der Kurzlink existiert
+  ja, er ist nur noch nicht scharf. Linkchecker und Messenger melden vorab
+  gedruckte QR-Codes damit nicht mehr als tot.
+
+### Behoben
+- **Papierkorb: „Aktiv ab" und Rotationsziele gingen beim Wiederherstellen
+  verloren** – der Eintrag wurde aus einer Feldliste von vor 1.2.0 neu aufgebaut.
+- **Suche und Filter blendeten in schmalen Fenstern (≤ 900 px) keine Zeilen mehr
+  aus**: `display:block` auf `tr` schlug das `hidden`-Attribut des Browsers.
+- **Speichern konnte „Aktiv ab" und Rotation leeren**, wenn das Formular die
+  Felder gar nicht mitschickte (z. B. ein noch offener Tab von vor dem Update).
+- **QR-Voreinstellung „ohne Logo" räumte ein zuvor gewähltes Logo nicht ab** –
+  das Logo klebte am nächsten Code, während die Fehlerkorrektur schon
+  zurückgesetzt war (Logo bei ECL M/L = kaum noch scannbar).
+- **Etikettenbogen und ZIP-Export ignorierten gespeicherte QR-Voreinstellungen**,
+  solange der QR-Dialog noch nicht offen war.
+- **Rotationsziele verschwanden stillschweigend**: Gewichte ab 1000 ließen die
+  ganze Zeile durchfallen (jetzt auf 1–100 gekappt), und verworfene Zeilen werden
+  jetzt im Formular zurückgemeldet.
+- **Link-Prüfung und Suche kannten die Rotationsziele nicht** – ein totes
+  Alt-Ziel blieb unsichtbar, und der Link ließ sich nicht über seine
+  Rotations-URL finden.
+- **Quellen-Zähler waren nach 50 verschiedenen Markern dicht**: neue Kampagnen
+  wurden stillschweigend nicht mehr gezählt. Jetzt weicht die schwächste Quelle.
+- **API:** Nur-Lese-Tokens liefen am Rate-Limit und an der Nutzungsstatistik
+  vorbei (abgelehnte Schreibversuche blieben unsichtbar und ungedrosselt);
+  `HEAD` wird nicht mehr als Schreibzugriff behandelt. Ein einzelnes
+  `alts`-Objekt (statt Liste) verlor sein Gewicht.
+- `?q[]=…` erzeugte eine PHP-Warnung im Log und eine Quelle namens „array".
+- Etikettenbogen: Aufräumen jetzt auch vor dem Aufbau (nicht nur per
+  `afterprint`), sonst druckte der nächste normale Seitendruck die alten
+  Etiketten; das Logo fehlte gelegentlich im ersten Ausdruck.
+
 ## [1.2.0] – 2026-07-20
 
 ### Hinzugefügt

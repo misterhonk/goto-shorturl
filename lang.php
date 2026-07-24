@@ -42,6 +42,8 @@ return [
         => 'one URL per line; optionally append a weight, e.g. “https://target.com 3”',
     'Ist mindestens ein weiteres Ziel gesetzt, wird bei jedem Aufruf zufällig (gewichtet) eines gewählt.'
         => 'If at least one additional target is set, one is picked at random (weighted) on each visit.',
+    '(%d Rotationsziel(e) ohne gültige http(s)-URL ignoriert.)'
+        => '(%d rotation target(s) ignored – no valid http(s) URL.)',
     'Rotation: Ziel wird bei jedem Aufruf gewählt' => 'Rotation: target chosen on each visit',
     'Rotation'                           => 'Rotation',
     'Startdatum entfernen'               => 'Remove start date',

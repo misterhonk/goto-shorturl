@@ -84,8 +84,14 @@ function clean_text(string $s, int $max): string {
 function clean_group(string $s): string { return clean_text($s, 40); }
 function clean_title(string $s): string { return clean_text($s, 80); }
 
-/* Quellen-/Kampagnen-Marker (?q=…): kleiner, dateisystem-/JSON-sicherer Bezeichner.
- * Datensparsam – der Name wird vom Nutzer selbst vergeben (kein PII). */
+/* Nur echte Strings aus $_GET/$_POST übernehmen: ?q[]=x liefert sonst ein Array,
+ * das der (string)-Cast zu „Array" macht (samt PHP-Warnung im Log). */
+function req_str($v): string { return is_string($v) ? $v : ''; }
+
+/* Quellen-/Kampagnen-Marker (?gq=…): kleiner, dateisystem-/JSON-sicherer Bezeichner.
+ * Datensparsam – der Name wird vom Nutzer selbst vergeben (kein PII).
+ * ACHTUNG: cleanSource() in assets/app.js ist die Spiegelung davon – Änderungen
+ * hier müssen dort mitgezogen werden, sonst zählen gedruckte Codes anders. */
 function clean_source(string $s): string {
     $s = strtolower(trim($s));
     $s = preg_replace('/[^a-z0-9._\-]+/', '-', $s) ?? '';
@@ -105,6 +111,7 @@ function clean_date(string $s): string {
 // Weitere Ziele auf gültige [{url,weight}] normalisieren (max. 20, Gewicht 1–100)
 function normalize_alts($raw): array {
     if (!is_array($raw)) return [];
+    if (isset($raw['url'])) $raw = [$raw];   // einzelnes Objekt statt Liste – Gewicht sonst verloren
     $out = [];
     foreach ($raw as $a) {
         $u = is_array($a) ? (string) ($a['url'] ?? '') : (string) $a;
@@ -125,7 +132,9 @@ function parse_alts_text(string $text): array {
         $line = trim($line);
         if ($line === '') continue;
         $weight = 1;
-        if (preg_match('/^(.*\S)\s+(\d{1,3})$/', $line, $m)) { $line = $m[1]; $weight = (int) $m[2]; }
+        // Abschließende Ziffern = Gewicht (beliebig lang; normalize_alts kappt auf 1–100).
+        // Sonst bliebe die Zahl Teil der „URL" und das ganze Ziel fiele stillschweigend weg.
+        if (preg_match('/^(.*\S)\s+(\d+)$/', $line, $m)) { $line = $m[1]; $weight = (int) $m[2]; }
         $out[] = ['url' => $line, 'weight' => $weight];
     }
     return normalize_alts($out);
@@ -237,7 +246,7 @@ function clicks_days(array $clicks, string $slug): array {
     $c = $clicks[$slug] ?? null;
     return (is_array($c) && isset($c['d']) && is_array($c['d'])) ? $c['d'] : [];
 }
-// Quellen-Aufschlüsselung { quelle: n } (aus ?q=…), absteigend sortiert
+// Quellen-Aufschlüsselung { quelle: n } (aus ?gq=…), absteigend sortiert
 function clicks_sources(array $clicks, string $slug): array {
     $c = $clicks[$slug] ?? null;
     $s = (is_array($c) && isset($c['s']) && is_array($c['s'])) ? $c['s'] : [];

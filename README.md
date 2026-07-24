@@ -47,10 +47,11 @@ und zählt Aufrufe DSGVO-konform — alles in ein paar Dateien, ohne Datenbank.
   **CSV-Export** der Tageswerte,
   mit **Statistik-Kacheln** (gesamt / heute / 7 Tage / Top-Link) und
   **Klick-Verlauf** als Diagramm (14 / 30 / 90 Tage)
-- **Quellen-/Kampagnen-Tracking**: `goto/kürzel?q=flyer` schlüsselt die Aufrufe
+- **Quellen-/Kampagnen-Tracking**: `goto/kürzel?gq=flyer` schlüsselt die Aufrufe
   nach **Quelle** auf (Feld „Quelle" im QR-Dialog baut den Marker gleich ein).
-  DSGVO-sparsam wie bisher – nur Zähler, keine IPs/Referrer; der Marker wird
-  **nicht** an die Ziel-URL weitergereicht
+  DSGVO-sparsam wie bisher – nur Zähler, keine IPs/Referrer; der Marker `gq` wird
+  **nicht** an die Ziel-URL weitergereicht (alle übrigen Parameter – auch `q` –
+  schon)
 - **Titel / Notiz** je Link, **Ablaufdatum** (abgelaufene Links liefern `410 Gone`,
   wahlweise **Weiterleitung auf eine Ersatz-URL** statt der 410-Seite)
 - **Aktivierungsdatum („Aktiv ab")**: Links vordatieren – vor dem Starttag noch
@@ -377,7 +378,7 @@ Anfragen/Min.** je Token), `405` (Methode).
 | `alts` | weitere Ziele für die gewichtete Rotation (leer/fehlend = aus) |
 
 `clicks.json` — nur Zähler, sonst nichts: `t` gesamt, `d` je Tag,
-`s` je Quelle (aus `?q=…`):
+`s` je Quelle (aus `?gq=…`):
 
 ```json
 { "intro": { "t": 42, "d": { "2026-07-20": 5 }, "s": { "flyer": 12 } } }
