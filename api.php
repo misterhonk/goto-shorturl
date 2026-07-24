@@ -85,12 +85,6 @@ if (!is_array($rec) || !hash_equals((string) ($rec['h'] ?? ''), hash('sha256', $
     respond(401, ['ok' => false, 'error' => 'unauthorized', 'message' => 'Invalid API token.']);
 }
 
-/* ---- Scope: Nur-Lese-Token dürfen keine schreibenden Methoden ----- */
-
-if (($rec['scope'] ?? 'write') === 'read' && $method !== 'GET') {
-    respond(403, ['ok' => false, 'error' => 'read_only', 'message' => 'This token is read-only; only GET is allowed.']);
-}
-
 /* ---- Rate-Limit (pro Token, je Minute) --------------------------- */
 
 $min = (int) (time() / 60);
@@ -109,6 +103,16 @@ $rec['used']  = time();
 $rec['calls'] = (int) ($rec['calls'] ?? 0) + 1;
 $tokens[$id]  = $rec;
 save_json(API_TOKENS_FILE, $tokens);
+
+/* ---- Scope: Nur-Lese-Token dürfen keine schreibenden Methoden -----
+ * Erst nach Rate-Limit und Zählern: ein abgelehnter Schreibversuch soll
+ * gedrosselt werden und in der Token-Liste sichtbar sein (sonst steht dort
+ * „nie genutzt", während jemand mit dem Token hämmert). HEAD liest nur und
+ * läuft wie bei Schreib-Tokens ins normale 405. */
+
+if (($rec['scope'] ?? 'write') === 'read' && !in_array($method, ['GET', 'HEAD'], true)) {
+    respond(403, ['ok' => false, 'error' => 'read_only', 'message' => 'This token is read-only; only GET is allowed.']);
+}
 
 /* ---- Routing: GET liest, POST legt an, PATCH ändert, DELETE löscht */
 

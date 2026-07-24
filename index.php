@@ -77,8 +77,10 @@ if ($target !== null) {
 
 if (is_https()) header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
 
-// Optionaler Quellen-/Kampagnen-Marker (?q=…) – wird DSGVO-sparsam nur als Zähler erfasst
-$clickSource = clean_source((string) ($_GET['q'] ?? ''));
+// Optionaler Quellen-/Kampagnen-Marker (?gq=…) – wird DSGVO-sparsam nur als Zähler erfasst.
+// „q" wäre als Marker zu gierig (halbes Web nutzt es als Such-Parameter), deshalb „gq".
+// Codes aus 1.2.0 mit ?q= zählen übergangsweise weiter, laufen aber ans Ziel durch.
+$clickSource = clean_source(req_str($_GET['gq'] ?? $_GET['q'] ?? null));
 
 // Passwortgeschützte Links: statt 302 zuerst die Passwort-Seite (weiter unten)
 $protected = $target !== null && $linkPass !== '';
@@ -100,7 +102,9 @@ $isPreviewBot = $target !== null && !$protected && preg_match(
 function merge_query(string $target): string {
     $params = $_GET;
     unset($params['slug']);   // internes Routing-Artefakt (Rewrite-Variante B)
-    unset($params['q']);      // GOTO-Quellen-Marker – wird intern gezählt, nicht ans Ziel gereicht
+    unset($params['gq']);     // GOTO-Quellen-Marker – wird intern gezählt, nicht ans Ziel gereicht
+    // ?q= bleibt bewusst drin: es ist der verbreitetste Such-Parameter im Web und
+    // gehört dem Ziel, nicht uns (Alt-Codes aus 1.2.0 werden trotzdem gezählt).
     if (!$params) return $target;
     $frag = '';
     if (($p = strpos($target, '#')) !== false) {
@@ -111,7 +115,7 @@ function merge_query(string $target): string {
          . http_build_query($params) . $frag;
 }
 
-// Aufruf zählen (reiner Zähler, datensparsam). $source = optionaler Quellen-Marker (?q=…)
+// Aufruf zählen (reiner Zähler, datensparsam). $source = optionaler Quellen-Marker (?gq=…)
 function count_click(string $slug, string $source = ''): void {
     $fp = @fopen(CLICKS_FILE, 'c+');
     if ($fp && flock($fp, LOCK_EX)) {
@@ -130,10 +134,15 @@ function count_click(string $slug, string $source = ''): void {
         }
         if ($source !== '') {                              // Quellen-Zähler (max. 50 verschiedene je Link)
             $s = (isset($rec['s']) && is_array($rec['s'])) ? $rec['s'] : [];
-            if (isset($s[$source]) || count($s) < 50) {
-                $s[$source] = (int) ($s[$source] ?? 0) + 1;
-                $rec['s'] = $s;
+            if (!isset($s[$source]) && count($s) >= 50) {
+                // Voll: schwächste Quelle weicht der neuen – sonst sperren ein paar
+                // Zufalls-Marker (?gq=… ist öffentlich) echte Kampagnen dauerhaft aus.
+                asort($s);
+                $weakest = array_key_first($s);
+                if ($weakest !== null) unset($s[$weakest]);
             }
+            $s[$source] = (int) ($s[$source] ?? 0) + 1;
+            $rec['s'] = $s;
         }
         $clicks[$slug] = $rec;
         rewind($fp);
@@ -352,7 +361,9 @@ if ($target !== null) {
     exit;
 }
 
-http_response_code($expired ? 410 : 404);
+// 403 statt 404 für vordatierte Links: der Kurzlink existiert, er ist nur noch
+// nicht scharf – sonst melden Linkchecker/Messenger den vorab gedruckten QR als tot.
+http_response_code($expired ? 410 : ($notyet ? 403 : 404));
 if ($expired) {
     $head = $t('Link abgelaufen');    $msg = $t('Dieser Link ist abgelaufen.');           $tab = $t('Abgelaufen');
 } elseif ($notyet) {
