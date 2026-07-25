@@ -79,8 +79,7 @@ if (is_https()) header('Strict-Transport-Security: max-age=31536000; includeSubD
 
 // Optionaler Quellen-/Kampagnen-Marker (?gq=…) – wird DSGVO-sparsam nur als Zähler erfasst.
 // „q" wäre als Marker zu gierig (halbes Web nutzt es als Such-Parameter), deshalb „gq".
-// Codes aus 1.2.0 mit ?q= zählen übergangsweise weiter, laufen aber ans Ziel durch.
-$clickSource = clean_source(req_str($_GET['gq'] ?? $_GET['q'] ?? null));
+$clickSource = clean_source(req_str($_GET['gq'] ?? null));
 
 // Passwortgeschützte Links: statt 302 zuerst die Passwort-Seite (weiter unten)
 $protected = $target !== null && $linkPass !== '';
@@ -103,8 +102,7 @@ function merge_query(string $target): string {
     $params = $_GET;
     unset($params['slug']);   // internes Routing-Artefakt (Rewrite-Variante B)
     unset($params['gq']);     // GOTO-Quellen-Marker – wird intern gezählt, nicht ans Ziel gereicht
-    // ?q= bleibt bewusst drin: es ist der verbreitetste Such-Parameter im Web und
-    // gehört dem Ziel, nicht uns (Alt-Codes aus 1.2.0 werden trotzdem gezählt).
+    // ?q= gehört dem Ziel, nicht uns: verbreitetster Such-Parameter im Web.
     if (!$params) return $target;
     $frag = '';
     if (($p = strpos($target, '#')) !== false) {

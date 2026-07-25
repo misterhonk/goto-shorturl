@@ -5,6 +5,24 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+## [1.3.0] – 2026-07-25
+
+### Entfernt
+- **Übergangsweises Zählen von `?q=` als Quelle.** Seit 1.2.1 heißt der
+  Quellen-Marker `?gq=`; `?q=` wurde nur noch mitgezählt, damit die wenigen
+  zwischen 1.2.0 und 1.2.1 gedruckten QR-Codes nicht ins Leere laufen. Dieser
+  Rückfallpfad ist jetzt weg: `?q=` ist für GOTO ein ganz normaler
+  Query-Parameter, der unangetastet ans Ziel durchgereicht wird.
+
+  **Folge:** QR-Codes, die zwischen 1.2.0 und 1.2.1 mit `?q=…` erzeugt wurden,
+  leiten weiterhin einwandfrei weiter, tauchen aber nicht mehr in der
+  Quellen-Statistik auf. Bereits gezählte Aufrufe bleiben erhalten. Wer solche
+  Codes im Umlauf hat und die Zählung braucht, erzeugt sie mit `?gq=…` neu.
+
+  Der Nebeneffekt war, dass von Besuchern getippte Suchbegriffe (`?q=…` ist der
+  verbreitetste Such-Parameter im Web) als vermeintliche Quellen in
+  `clicks.json` landeten – das passiert jetzt nicht mehr.
+
 ## [1.2.2] – 2026-07-25
 
 Nachlese zum Review: die kleineren Punkte, die in 1.2.1 noch nicht mitgekommen
@@ -393,7 +411,8 @@ Screenshot; README/QUICKSTART auf den aktuellen Stand gebracht.
   Drag & Drop, Live-Suche sowie Import/Export.
 - Datenbanklos – alle Daten in JSON-Dateien.
 
-[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v1.2.2...HEAD
+[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/misterhonk/goto-shorturl/compare/v1.2.2...v1.3.0
 [1.2.2]: https://github.com/misterhonk/goto-shorturl/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/misterhonk/goto-shorturl/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/misterhonk/goto-shorturl/compare/v1.1.1...v1.2.0
