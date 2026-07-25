@@ -106,6 +106,19 @@ function clean_date(string $s): string {
     return ($d && $d->format('Y-m-d') === $s) ? $s : '';
 }
 
+/* ---- Zeitfenster eines Links -------------------------------------
+ * Tagesgenauer Vergleich in der Server-Zeitzone. Beide Prädikate gehören
+ * hierher und nicht in die Einstiegspunkte: index.php entscheidet damit über
+ * die Weiterleitung, admin.php über die Chips – das darf nicht auseinander-
+ * laufen. */
+
+function is_expired(string $expires): bool {
+    return $expires !== '' && $expires < date('Y-m-d');
+}
+function is_pending(string $starts): bool {
+    return $starts !== '' && $starts > date('Y-m-d');
+}
+
 /* ---- Rotation / mehrere Ziele ------------------------------------ */
 
 // Weitere Ziele auf gültige [{url,weight}] normalisieren (max. 20, Gewicht 1–100)

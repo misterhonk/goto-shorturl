@@ -47,12 +47,7 @@ function e(string $s): string {
     return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 }
 
-function is_expired(string $expires): bool {
-    return $expires !== '' && $expires < date('Y-m-d');
-}
-function is_pending(string $starts): bool {
-    return $starts !== '' && $starts > date('Y-m-d');
-}
+// is_expired()/is_pending() stehen in lib.php – index.php braucht sie genauso.
 // Weitere Ziele als Freitext fürs Formular: eine URL je Zeile, Gewicht >1 angehängt
 function alts_text($alts): string {
     $lines = [];
@@ -1673,9 +1668,18 @@ foreach ($links as $s => $l) { $k = $normUrl((string) $l['url']); if ($k !== '' 
     <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?export=1"><?= icon('download') ?><?= t('Export – JSON herunterladen') ?></a>
     <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?export=full"><?= icon('download') ?><?= t('Voll-Backup (mit Klicks & Papierkorb)') ?></a>
     <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?export=stats"><?= icon('bars') ?><?= t('Klick-Statistik (CSV)') ?></a>
-    <?php if ($links): ?><button type="button" id="qrAllZip" class="btn btn--ghost btn--small"><?= icon('qr') ?><?= t('Alle QR-Codes (ZIP)') ?></button>
-    <button type="button" id="qrSheet" class="btn btn--ghost btn--small" title="<?= t('Ausgewählte oder alle Links als Etikettenbogen drucken') ?>"><?= icon('qr') ?><?= t('QR-Etikettenbogen drucken') ?></button><?php endif; ?>
+    <?php if ($links): ?><button type="button" id="qrAllZip" class="btn btn--ghost btn--small" data-l-empty="<?= t('Keine Links vorhanden.') ?>" data-l-busy="<?= t('Erzeuge …') ?>"><?= icon('qr') ?><?= t('Alle QR-Codes (ZIP)') ?></button>
+    <button type="button" id="qrSheet" class="btn btn--ghost btn--small" data-l-empty="<?= t('Keine Links vorhanden.') ?>" title="<?= t('Ausgewählte oder alle Links als Etikettenbogen drucken') ?>"><?= icon('qr') ?><?= t('QR-Etikettenbogen drucken') ?></button><?php endif; ?>
   </p>
+  <?php if ($links): ?>
+  <p class="batchsrc">
+    <label class="field">
+      <span class="field-label"><?= t('Quelle für Stapel-QRs (optional)') ?></span>
+      <input type="text" id="qrBatchSource" maxlength="32" placeholder="<?= t('z. B. flyer, plakat') ?>" autocomplete="off">
+    </label>
+    <span class="field-hint"><?= t('Gilt für ZIP und Etikettenbogen – leer lassen für QR-Codes ohne Quellen-Marker.') ?></span>
+  </p>
+  <?php endif; ?>
   <form class="bar" method="post" enctype="multipart/form-data" autocomplete="off">
     <input type="hidden" name="action" value="import">
     <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
