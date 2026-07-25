@@ -5,6 +5,11 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+## [1.2.2] – 2026-07-25
+
+Nachlese zum Review: die kleineren Punkte, die in 1.2.1 noch nicht mitgekommen
+sind. Rein interne Aufräumarbeiten plus ein neues Feld für Stapel-QR-Codes.
+
 ### Behoben
 - **Quelle für Stapel-QRs:** ZIP-Export und Etikettenbogen haben den
   Quellen-Marker bisher gar nicht gekannt (das Feld im QR-Dialog gilt nur für
@@ -388,7 +393,8 @@ Screenshot; README/QUICKSTART auf den aktuellen Stand gebracht.
   Drag & Drop, Live-Suche sowie Import/Export.
 - Datenbanklos – alle Daten in JSON-Dateien.
 
-[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v1.2.2...HEAD
+[1.2.2]: https://github.com/misterhonk/goto-shorturl/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/misterhonk/goto-shorturl/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/misterhonk/goto-shorturl/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/misterhonk/goto-shorturl/compare/v1.1.0...v1.1.1
