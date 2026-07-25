@@ -90,6 +90,11 @@ return [
     'Export – JSON herunterladen'        => 'Export – download JSON',
     'Alle QR-Codes (ZIP)'                => 'All QR codes (ZIP)',
     'QR-Etikettenbogen drucken'          => 'Print QR label sheet',
+    'Keine Links vorhanden.'             => 'No links available.',
+    'Erzeuge …'                          => 'Generating …',
+    'Quelle für Stapel-QRs (optional)'   => 'Source for batch QRs (optional)',
+    'Gilt für ZIP und Etikettenbogen – leer lassen für QR-Codes ohne Quellen-Marker.'
+        => 'Applies to ZIP and label sheet – leave empty for QR codes without a source marker.',
     'Ausgewählte oder alle Links als Etikettenbogen drucken' => 'Print selected or all links as a label sheet',
     'mit Bestand zusammenführen'         => 'merge with existing',
     'Importieren'                        => 'Import',
