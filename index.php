@@ -50,8 +50,8 @@ if ($slug !== '' && isset($links[$slug])) {
         $linkPrev  = !empty($entry['preview']);
         $expUrl    = (string) ($entry['expires_url'] ?? '');
         $alts      = (isset($entry['alts']) && is_array($entry['alts'])) ? $entry['alts'] : [];
-        if ($expires !== '' && $expires < date('Y-m-d'))     $expired = true;
-        elseif ($starts !== '' && $starts > date('Y-m-d'))   $notyet  = true;
+        if (is_expired($expires))                            $expired = true;
+        elseif (is_pending($starts))                         $notyet  = true;
         elseif ($url !== '')                                 $target  = ($alts ? weighted_pick($url, $alts) : $url);
     } else {
         $target = (string) $entry;

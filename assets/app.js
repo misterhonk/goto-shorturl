@@ -675,21 +675,32 @@
       return out;
     }
     function canvasBytes(c){ return new Promise(function(res){ c.toBlob(function(bl){ bl.arrayBuffer().then(function(buf){ res(new Uint8Array(buf)); }); },'image/png'); }); }
+    // Quelle für die Stapel-Ausgaben: eigenes Feld neben den Knöpfen. Bewusst
+    // nicht das Feld aus dem QR-Dialog – das gilt für genau einen Code und wird
+    // beim Öffnen geleert; sonst klebte eine alte Quelle still an allen Codes.
+    var elBatchSrc=document.getElementById('qrBatchSource');
+    function batchSrc(){ return elBatchSrc?cleanSource(elBatchSrc.value):''; }
+    function batchUrl(u){ var q=batchSrc();
+      return q ? u+(u.indexOf('?')<0?'?':'&')+'gq='+encodeURIComponent(q) : u; }
+    function batchName(slug){ var q=batchSrc(); return 'qr-'+slug+(q?'-'+q:''); }
+    function l(el,name,fallback){ return (el&&el.getAttribute('data-l-'+name))||fallback; }
+
     var zipBtn=document.getElementById('qrAllZip');
     if(zipBtn) zipBtn.addEventListener('click',function(){
       var items=Array.prototype.slice.call(document.querySelectorAll('[data-qr]'));
-      if(!items.length){ alert('Keine Links vorhanden.'); return; }
+      if(!items.length){ alert(l(zipBtn,'empty','Keine Links vorhanden.')); return; }
       // Batch im aktuell gewählten Stil (Farben, Rand, Modulgröße, Logo)
       var ecl=elEcl?elEcl.value:'M', done=0, old=zipBtn.textContent;
       var sc=Math.max(2,num(elScale,8)), mg=Math.max(0,num(elMargin,4));
-      zipBtn.disabled=true; zipBtn.textContent='Erzeuge … 0/'+items.length;
+      var busy=l(zipBtn,'busy','Erzeuge …');
+      zipBtn.disabled=true; zipBtn.textContent=busy+' 0/'+items.length;
       var jobs=[];
       items.forEach(function(b){
-        var slug=b.getAttribute('data-slug')||'qr', url=b.getAttribute('data-qr'), qr;
+        var slug=b.getAttribute('data-slug')||'qr', url=batchUrl(b.getAttribute('data-qr')), qr;
         try{ qr=QRCodeGen.encode(url, ecl); }catch(e){ return; }
         jobs.push(canvasBytes(overlay(draw(qr,sc,mg),elBg.value)).then(function(bytes){
-          zipBtn.textContent='Erzeuge … '+(++done)+'/'+items.length;
-          return {name:'qr-'+slug+'.png', data:bytes};
+          zipBtn.textContent=busy+' '+(++done)+'/'+items.length;
+          return {name:batchName(slug)+'.png', data:bytes};
         }));
       });
       Promise.all(jobs).then(function(files){
@@ -709,7 +720,7 @@
               .map(function(c){ return c.value; });
         var items=Array.prototype.slice.call(document.querySelectorAll('[data-qr]'));
         if(checked.length) items=items.filter(function(b){ return checked.indexOf(b.getAttribute('data-slug'))>=0; });
-        if(!items.length){ alert('Keine Links vorhanden.'); return; }
+        if(!items.length){ alert(l(sheetBtn,'empty','Keine Links vorhanden.')); return; }
         var ecl=elEcl?elEcl.value:'M', mg=Math.max(0,num(elMargin,4));
         // Aufräumen auch am Anfang: feuert „afterprint" mal nicht (manche
         // Webviews), bliebe der Bogen sonst scharf und der nächste normale
@@ -717,7 +728,7 @@
         document.body.classList.remove('print-sheet');
         sheet.innerHTML='';
         items.forEach(function(b){
-          var slug=b.getAttribute('data-slug')||'qr', url=b.getAttribute('data-qr'),
+          var slug=b.getAttribute('data-slug')||'qr', url=batchUrl(b.getAttribute('data-qr')),
               title=b.getAttribute('data-title')||'', qr;
           try{ qr=QRCodeGen.encode(url, ecl); }catch(e){ return; }
           var cell=document.createElement('div'); cell.className='qrsheet-cell';

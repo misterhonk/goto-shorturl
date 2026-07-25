@@ -16,6 +16,18 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
   gedruckte QR-Codes damit nicht mehr als tot.
 
 ### Behoben
+- **Quelle für Stapel-QRs:** ZIP-Export und Etikettenbogen haben den
+  Quellen-Marker bisher gar nicht gekannt (das Feld im QR-Dialog gilt nur für
+  den einen Code). Beide Stapel-Ausgaben haben jetzt ein eigenes Feld „Quelle
+  für Stapel-QRs"; ist es gefüllt, landet `?gq=…` in allen erzeugten Codes und
+  im Dateinamen der ZIP-Einträge.
+- **Leere Checkbox-Spalte** bei Token-, Papierkorb- und Audit-Tabellen zwischen
+  761 und 900 px – diese Tabellen haben gar keine Checkbox.
+- **Zwei deutsche Meldungen im JavaScript** („Keine Links vorhanden.",
+  „Erzeuge …") laufen jetzt über `data-l-*` wie der Rest und sind übersetzt.
+- **`is_expired()`/`is_pending()` liegen jetzt in `lib.php`** statt doppelt in
+  `admin.php` und `index.php` – Chips im Admin und die Weiterleitung können so
+  nicht mehr auseinanderlaufen.
 - **Papierkorb: „Aktiv ab" und Rotationsziele gingen beim Wiederherstellen
   verloren** – der Eintrag wurde aus einer Feldliste von vor 1.2.0 neu aufgebaut.
 - **Suche und Filter blendeten in schmalen Fenstern (≤ 900 px) keine Zeilen mehr

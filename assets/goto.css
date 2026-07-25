@@ -305,6 +305,10 @@ input.invalid:focus{box-shadow:0 0 0 4px rgba(255,59,48,.18)}
 .ctl-label{font-size:.74rem;font-weight:600;letter-spacing:.02em;color:var(--muted);padding-left:.15rem}
 .ctl select{min-width:9.5rem}
 .toolbtns{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+/* Quellen-Feld für ZIP/Etikettenbogen – direkt unter den Stapel-Knöpfen */
+.batchsrc{display:flex;gap:.7rem;flex-wrap:wrap;align-items:flex-end;margin:.6rem 0 0}
+.batchsrc .field{flex:0 0 13rem}
+.batchsrc .field-hint{margin:0 0 .55rem}
 .trashlist{width:100%;border-collapse:collapse;margin:.6rem 0}
 .trashlist td{padding:.45rem .5rem;border-top:1px solid var(--line);vertical-align:middle}
 .trashlist tr:first-child td{border-top:0}
@@ -487,6 +491,9 @@ dialog.clkdlg{width:min(520px,94vw)}
   .cbcell{position:absolute;left:0;top:50%;transform:translateY(-50%);width:auto;margin:0}
   tr.editrow{padding-left:0}              /* Bearbeiten-Modus: kein Checkbox-Gutter */
   tr.editrow .cbcell{display:none}
+  /* Token-/Papierkorb-/Audit-Tabellen haben keine Checkbox – sonst stünde
+     hier eine leere 3rem-Rinne. */
+  .trashlist tr{padding-left:0}
   input.rowchk{width:26px;height:26px;border-radius:8px}
   input.rowchk:checked::after{left:9px;top:4px;width:6px;height:11px;border-width:0 2.5px 2.5px 0}
   .clickcell{display:inline-block;width:auto;vertical-align:middle;margin-right:1rem}
