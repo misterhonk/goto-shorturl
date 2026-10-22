@@ -254,36 +254,52 @@ if ($protected) {
     $attKey  = 'pw:' . hash('sha256', ($_SERVER['REMOTE_ADDR'] ?? '') . '|' . $slug);
     $err     = '';
     $now     = time();
-    $att     = load_json($attFile);
-    $rec     = (array) ($att[$attKey] ?? ['count' => 0, 'until' => 0]);
+    $rec     = (array) (load_json($attFile)[$attKey] ?? ['count' => 0, 'until' => 0]);
     $locked  = (int) ($rec['until'] ?? 0) > $now;
 
+    /* Versuch reservieren: prüfen und hochzählen in EINEM Sperrvorgang.
+     * Getrennt würden gleichzeitige Rateversuche alle das Tor passieren,
+     * bevor der erste gezählt hat – die Bremse griffe zu spät.
+     * Rückgabe: 0 = erlaubt, sonst verbleibende Sperrsekunden. */
+    $attemptBegin = function () use ($attFile, $attKey, $now): int {
+        $wait = 0;
+        with_locked_json($attFile, function (array $a) use ($attKey, $now, &$wait) {
+            $r = (array) ($a[$attKey] ?? ['count' => 0, 'until' => 0]);
+            if ((int) ($r['until'] ?? 0) > $now) { $wait = (int) $r['until'] - $now; return null; }
+            foreach ($a as $k => $old) {   // abgelaufene Einträge aufräumen
+                if (($old['until'] ?? 0) < $now && ($old['count'] ?? 0) === 0) unset($a[$k]);
+            }
+            $r['count'] = (int) ($r['count'] ?? 0) + 1;
+            if ($r['count'] >= 8) $r = ['count' => 0, 'until' => $now + 900];
+            $a[$attKey] = $r;
+            if (count($a) > 2000) {
+                $a = array_filter($a, fn($x) => ($x['until'] ?? 0) >= $now);
+                $a[$attKey] = $r;
+            }
+            return $a;
+        });
+        return $wait;
+    };
+
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['linkpw'])) {
-        if ($locked) {
-            $err = sprintf($t('Zu viele Fehlversuche. Bitte %d Min. warten.'),
-                           (int) ceil(((int) $rec['until'] - $now) / 60));
+        $wait = $attemptBegin();
+        if ($wait > 0) {
+            $err = sprintf($t('Zu viele Fehlversuche. Bitte %d Min. warten.'), (int) ceil($wait / 60));
         } elseif (password_verify((string) $_POST['linkpw'], $linkPass)) {
-            if (isset($att[$attKey])) { unset($att[$attKey]); save_json($attFile, $att); }
+            with_locked_json($attFile, function (array $a) use ($attKey) {
+                if (!isset($a[$attKey])) return null;
+                unset($a[$attKey]);          // erfolgreicher Versuch zählt nicht
+                return $a;
+            });
             count_click($slug, $clickSource);
             header('Referrer-Policy: no-referrer');
             header('Location: ' . merge_query($target), true, 302);
             exit;
         } else {
-            $rec['count'] = (int) ($rec['count'] ?? 0) + 1;
-            if ($rec['count'] >= 8) $rec = ['count' => 0, 'until' => $now + 900];
-            foreach ($att as $k => $r) {   // abgelaufene Einträge aufräumen
-                if (($r['until'] ?? 0) < $now && ($r['count'] ?? 0) === 0) unset($att[$k]);
-            }
-            $att[$attKey] = $rec;
-            if (count($att) > 2000) {
-                $att = array_filter($att, fn($r) => ($r['until'] ?? 0) >= $now);
-                $att[$attKey] = $rec;
-            }
-            save_json($attFile, $att);
             usleep(300000);
-            $err = ((int) ($rec['until'] ?? 0) > $now)
-                ? sprintf($t('Zu viele Fehlversuche. Bitte %d Min. warten.'),
-                          (int) ceil(((int) $rec['until'] - $now) / 60))
+            $left = (int) ((load_json($attFile)[$attKey]['until'] ?? 0)) - $now;
+            $err  = $left > 0
+                ? sprintf($t('Zu viele Fehlversuche. Bitte %d Min. warten.'), (int) ceil($left / 60))
                 : $t('Falsches Passwort.');
         }
     } elseif ($locked) {

@@ -18,6 +18,13 @@ return [
     'max_attempts'    => 5,      // Login-Fehlversuche bis zur Sperre
     'lockout_seconds' => 900,    // Dauer der Sperre nach zu vielen Versuchen
 
+    // Dürfen Geräte mit „Angemeldet bleiben" die 2FA-Abfrage überspringen?
+    // true = wie bei den meisten Diensten: ein vertrautes Gerät fragt den
+    // App-Code nicht erneut ab. false = auch dort bei jeder Anmeldung.
+    // Unabhängig davon verfallen alle Geräte, sobald sich Passwort oder 2FA
+    // ändern – ein abhanden gekommenes Cookie lässt sich so aussperren.
+    'remember_skips_2fa' => true,
+
     // Favicons der Zielseiten in der Liste anzeigen. true lädt sie von
     // icons.duckduckgo.com (ein externer Abruf je Domain). false = aus.
     'favicons'        => true,

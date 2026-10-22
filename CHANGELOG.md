@@ -5,6 +5,57 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+### Sicherheit
+- **Zähler und Sperren werden jetzt unter Dateisperre fortgeschrieben.** Bisher
+  liefen Lesen und Zurückschreiben getrennt (`load_json()` … `save_json()`):
+  gleichzeitige Anfragen lasen denselben Stand und überschrieben sich
+  gegenseitig. Gemessen im lokalen Test:
+  - Login-Bremse (`max_attempts` = 5): seriell korrekt 5 Versuche, **parallel
+    kamen 10 durch**. Jetzt exakt 5 – auch bei 40 gleichzeitigen Versuchen.
+  - API-Rate-Limit (120/min): am Limit kamen von 30 parallelen Anfragen
+    **29 durch**. Jetzt 5 von 30, der Rest bekommt 429.
+  - API-Aufrufzähler: von 100 parallelen Anfragen wurden **39 gezählt**.
+    Jetzt 100 von 100.
+
+  Prüfen und Hochzählen passieren bei der Anmeldung außerdem in *einem*
+  Sperrvorgang (`attempt_begin()`): vorher wurde erst geprüft und erst nach der
+  Passwortprüfung gezählt, sodass gleichzeitige Versuche alle das Tor
+  passierten, bevor der erste gezählt hatte. Ein erfolgreicher Versuch wird wie
+  bisher per `clear_fails()` wieder zurückgenommen.
+
+  Neu in `lib.php`: `with_locked_json()` für Lesen-Ändern-Schreiben unter
+  Sperre (dasselbe Muster, das `count_click()` im Hot-Path schon nutzte) sowie
+  `lock_data()`/`unlock_data()` für komplette `urls.json`-Zyklen. Letzteres
+  schließt die Lücke, dass zwei gleichzeitige API-Schreibzugriffe einen neu
+  angelegten Link verschlucken konnten (12 parallele POSTs: vorher nicht
+  verlässlich, jetzt 12 von 12).
+
+- **„Angemeldet bleiben" überlebt einen Passwortwechsel nicht mehr.** Bisher
+  blieb ein abhanden gekommenes Cookie nach einem Passwortwechsel noch bis zu
+  30 Tage gültig – ausgerechnet die Geste, mit der man ein verlorenes Gerät
+  aussperrt, hatte keine Wirkung. Jedes Gerät merkt sich jetzt einen
+  Fingerabdruck der Zugangsdaten (Passwort-Hash + TOTP-Secret); ändert sich
+  einer davon, ist das Gerät abgemeldet. Zusätzlich werden beim Passwortwechsel
+  und beim Ein-/Ausschalten der 2FA alle Geräte ausdrücklich abgemeldet und die
+  Sitzungs-ID erneuert.
+
+  Wiederherstellungs-Codes fließen bewusst nicht in den Abdruck ein – ein
+  eingelöster Code darf keine fremden Geräte abmelden. Bestehende Geräte aus
+  älteren Versionen bleiben beim Update angemeldet und bekommen den Abdruck
+  beim nächsten Aufruf nachgetragen.
+
+- **Einmal-Codes lassen sich nicht mehr parallel doppelt einlösen:**
+  `recovery_consume()` prüft und verbraucht den Code jetzt unter einer Sperre.
+
+- **Eindeutiger Temp-Dateiname beim Speichern.** `save_json()` schrieb über
+  einen für alle Prozesse gleichen `.tmp`-Pfad; damit konnte ein Prozess die
+  halb geschriebene Datei eines anderen an ihr Ziel umbenennen.
+
+### Hinzugefügt
+- **`remember_skips_2fa` in `config.php`** (Standard `true` – unverändertes
+  Verhalten). Auf `false` gesetzt, fragt GOTO den App-Code auch auf Geräten mit
+  „Angemeldet bleiben" bei jeder Anmeldung ab.
+
 ## [1.3.0] – 2026-07-25
 
 ### Entfernt

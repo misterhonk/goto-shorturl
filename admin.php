@@ -20,6 +20,10 @@ define('LINKCHECK_FILE', $dataDir . '/.ht_linkcheck.json');
 define('SHOW_FAVICONS', (bool) ($cfg['favicons'] ?? true));
 define('TITLE_FETCH',   (bool) ($cfg['title_fetch'] ?? true));
 define('UPDATE_CHECK',  (bool) ($cfg['update_check'] ?? false));
+// Dürfen „Angemeldet bleiben"-Geräte die 2FA-Abfrage überspringen? true ist
+// das übliche Verhalten für vertraute Geräte; false fragt den App-Code auch
+// dort bei jeder Anmeldung ab.
+define('REMEMBER_SKIPS_2FA', (bool) ($cfg['remember_skips_2fa'] ?? true));
 
 // Sprache: Cookie > config.php > Deutsch. Übersetzung über lang.php (Fallback: Deutsch).
 $LANG_EN = (array) (@include __DIR__ . '/lang.php');
@@ -65,8 +69,9 @@ function host_of(string $url): string {
 
 /* ---- API-Token ----------------------------------------------------- */
 
-function load_api_tokens(): array  { return load_json(API_TOKENS_FILE); }
-function save_api_tokens(array $t): bool { return save_json(API_TOKENS_FILE, $t); }
+// Nur lesend – geschrieben wird ausschließlich über with_locked_json(),
+// damit Zähler und Rate-Limit gleichzeitiger API-Anfragen nicht verloren gehen.
+function load_api_tokens(): array { return load_json(API_TOKENS_FILE); }
 
 // CSV importieren. Kopfzeile mit Spalten url,slug,group,title,expires (Reihenfolge egal).
 // Ohne Kopfzeile: erste Spalte = url, zweite = slug usw. Trenner , oder ; wird erkannt.
@@ -102,9 +107,10 @@ function csv_to_data(string $content): array {
 // save_hash() ergänzt statt zu überschreiben – das TOTP-Secret bleibt erhalten.
 function stored_hash(): string { return (string) (load_json(AUTH_FILE)['hash'] ?? ''); }
 function save_hash(string $hash): bool {
-    $a = load_json(AUTH_FILE);
-    $a['hash'] = $hash;
-    return save_json(AUTH_FILE, $a);
+    return with_locked_json(AUTH_FILE, function (array $a) use ($hash) {
+        $a['hash'] = $hash;
+        return $a;
+    });
 }
 
 /* ---- TOTP (RFC 6238; SHA1, 6 Stellen, 30 s) für die 2FA ------------ */
@@ -156,17 +162,22 @@ function recovery_generate(int $n = 8): array {
     }
     return ['display' => $disp, 'hashes' => $hash];
 }
+// Einmal-Code einlösen. Prüfen und Verbrauchen müssen unter einer Sperre
+// zusammenfallen, sonst ließe sich derselbe Code parallel mehrfach einlösen.
 function recovery_consume(string $code): bool {
     $norm = strtolower(preg_replace('/[^a-z0-9]/i', '', $code) ?? '');
     if ($norm === '') return false;
-    $a     = load_json(AUTH_FILE);
-    $codes = (array) ($a['totp_recovery'] ?? []);
-    $idx   = array_search(hash('sha256', $norm), $codes, true);
-    if ($idx === false) return false;
-    unset($codes[$idx]);
-    $a['totp_recovery'] = array_values($codes);
-    save_json(AUTH_FILE, $a);
-    return true;
+    $used = false;
+    with_locked_json(AUTH_FILE, function (array $a) use ($norm, &$used) {
+        $codes = (array) ($a['totp_recovery'] ?? []);
+        $idx   = array_search(hash('sha256', $norm), $codes, true);
+        if ($idx === false) return null;              // kein Treffer -> nichts schreiben
+        unset($codes[$idx]);
+        $a['totp_recovery'] = array_values($codes);
+        $used = true;
+        return $a;
+    });
+    return $used;
 }
 
 /* ---- Flash / Redirect / CSRF -------------------------------------- */
@@ -177,12 +188,15 @@ function flash(string $msg, string $type = 'error', string $copy = ''): void {
 
 /* ---- Audit-Log (Ring-Puffer, DSGVO-sparsam: kein IP, nur Geräte-Label) --- */
 function audit(string $ev, string $detail = ''): void {
-    $log = load_json(AUDIT_FILE);
-    if (!isset($log[0]) && $log) $log = [];   // nur Listen
-    $log[] = ['t' => time(), 'ev' => $ev, 'd' => $detail,
-              'ua' => ua_label((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''))];
-    if (count($log) > 200) $log = array_slice($log, -200);
-    save_json(AUDIT_FILE, $log);
+    $ua = ua_label((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''));
+    // Unter Sperre anhängen – sonst verlieren gleichzeitige Ereignisse
+    // (z. B. parallele Fehlversuche) Einträge, die gerade das Protokoll sind.
+    with_locked_json(AUDIT_FILE, function (array $log) use ($ev, $detail, $ua) {
+        if (!isset($log[0]) && $log) $log = [];   // nur Listen
+        $log[] = ['t' => time(), 'ev' => $ev, 'd' => $detail, 'ua' => $ua];
+        if (count($log) > 200) $log = array_slice($log, -200);
+        return $log;
+    });
 }
 function redirect(string $to): void { header('Location: ' . $to); exit; }
 
@@ -220,33 +234,54 @@ function remember_purge(array $t): array {
     foreach ($t as $s => $r) if (($r['exp'] ?? 0) < $now) unset($t[$s]);
     return $t;
 }
+
+/* Fingerabdruck der aktuellen Zugangsdaten (Passwort-Hash + TOTP-Secret).
+ * Jedes „Angemeldet bleiben"-Gerät merkt sich den Stand, der bei seiner
+ * Anmeldung galt. Ändert sich eines von beiden, passt der Abdruck nicht mehr
+ * und das Gerät ist automatisch abgemeldet – ein abhanden gekommenes Cookie
+ * verliert damit beim Passwortwechsel seine Gültigkeit, statt noch 30 Tage
+ * weiterzulaufen. Wiederherstellungs-Codes fließen bewusst NICHT ein: ein
+ * verbrauchter Code darf keine fremden Geräte abmelden. */
+function auth_fingerprint(string $passwordHash): string {
+    $totp = (string) (load_json(AUTH_FILE)['totp'] ?? '');
+    return substr(hash('sha256', $passwordHash . '|' . $totp), 0, 16);
+}
+
+// Alle Geräte abmelden (Passwortwechsel) – inkl. des eigenen Cookies.
+function remember_revoke_all(string $cookieDir, bool $https): void {
+    save_json(TOKENS_FILE, []);
+    remember_cookie('', time() - 86400, $cookieDir, $https);
+}
 function remember_cookie(string $value, int $expires, string $cookieDir, bool $https): void {
     setcookie(REMEMBER_COOKIE, $value, [
         'expires'  => $expires, 'path' => $cookieDir,
         'httponly' => true, 'secure' => $https, 'samesite' => 'Lax',
     ]);
 }
-function remember_set(string $cookieDir, bool $https): void {
+function remember_set(string $cookieDir, bool $https, string $fp): void {
     $sel = bin2hex(random_bytes(9));
     $val = bin2hex(random_bytes(32));
-    $t = remember_purge(load_json(TOKENS_FILE));
-    $t[$sel] = ['h' => hash('sha256', $val), 'exp' => time() + REMEMBER_TTL,
-                'created' => time(), 'seen' => time(),
-                'ua' => ua_label((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''))];
-    save_json(TOKENS_FILE, $t);
+    $ua  = ua_label((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''));
+    with_locked_json(TOKENS_FILE, function (array $t) use ($sel, $val, $ua, $fp) {
+        $t = remember_purge($t);
+        $t[$sel] = ['h' => hash('sha256', $val), 'exp' => time() + REMEMBER_TTL,
+                    'created' => time(), 'seen' => time(), 'fp' => $fp, 'ua' => $ua];
+        return $t;
+    });
     remember_cookie($sel . ':' . $val, time() + REMEMBER_TTL, $cookieDir, $https);
 }
 function remember_forget(string $cookieDir, bool $https): void {
     $raw = (string) ($_COOKIE[REMEMBER_COOKIE] ?? '');
     if ($raw !== '' && strpos($raw, ':') !== false) {
         [$sel] = explode(':', $raw, 2);
-        $t = load_json(TOKENS_FILE);
-        unset($t[$sel]);
-        save_json(TOKENS_FILE, $t);
+        with_locked_json(TOKENS_FILE, function (array $t) use ($sel) {
+            unset($t[$sel]);
+            return $t;
+        });
     }
     remember_cookie('', time() - 86400, $cookieDir, $https);
 }
-function remember_try(string $cookieDir, bool $https): bool {
+function remember_try(string $cookieDir, bool $https, string $fp): bool {
     $raw = (string) ($_COOKIE[REMEMBER_COOKIE] ?? '');
     if ($raw === '' || strpos($raw, ':') === false) return false;
     [$sel, $val] = explode(':', $raw, 2);
@@ -256,44 +291,65 @@ function remember_try(string $cookieDir, bool $https): bool {
         || !hash_equals((string) ($rec['h'] ?? ''), hash('sha256', $val))) {
         return false;
     }
+    // Zugangsdaten seit der Anmeldung geändert (Passwort oder 2FA)? Dann ist
+    // das Gerät abgemeldet. Tokens ohne „fp" stammen aus einer älteren Version
+    // und gelten einmalig weiter – sie bekommen unten den aktuellen Abdruck.
+    if (isset($rec['fp']) && !hash_equals((string) $rec['fp'], $fp)) {
+        remember_forget($cookieDir, $https);
+        return false;
+    }
     // Token bei jeder Nutzung rotieren (Metadaten erhalten, „zuletzt" aktualisieren)
     $nv = bin2hex(random_bytes(32));
-    $t = remember_purge($t);
-    $t[$sel] = ['h' => hash('sha256', $nv), 'exp' => time() + REMEMBER_TTL,
-                'created' => (int) ($rec['created'] ?? time()), 'seen' => time(),
-                'ua' => (string) ($rec['ua'] ?? ua_label((string) ($_SERVER['HTTP_USER_AGENT'] ?? '')))];
-    save_json(TOKENS_FILE, $t);
+    $ua = (string) ($rec['ua'] ?? ua_label((string) ($_SERVER['HTTP_USER_AGENT'] ?? '')));
+    $cr = (int) ($rec['created'] ?? time());
+    with_locked_json(TOKENS_FILE, function (array $t) use ($sel, $nv, $ua, $cr, $fp) {
+        $t = remember_purge($t);
+        $t[$sel] = ['h' => hash('sha256', $nv), 'exp' => time() + REMEMBER_TTL,
+                    'created' => $cr, 'seen' => time(), 'fp' => $fp, 'ua' => $ua];
+        return $t;
+    });
     remember_cookie($sel . ':' . $nv, time() + REMEMBER_TTL, $cookieDir, $https);
     return true;
 }
 
 /* ---- Brute-Force-Bremse (pro IP, dateibasiert) -------------------- */
 
-function lock_remaining(string $key): int {
-    $rec = load_json(ATTEMPTS_FILE)[$key] ?? null;
-    return $rec ? max(0, (int) ($rec['until'] ?? 0) - time()) : 0;
-}
-function register_fail(string $key, int $max, int $lockSecs): void {
-    $now = time();
-    $all = load_json(ATTEMPTS_FILE);
-    foreach ($all as $k => $r) {
-        if (($r['until'] ?? 0) < $now && ($r['count'] ?? 0) === 0) unset($all[$k]);
-    }
-    $rec = $all[$key] ?? ['count' => 0, 'until' => 0];
-    $rec['count']++;
-    if ($rec['count'] >= $max) $rec = ['count' => 0, 'until' => $now + $lockSecs];
-    $all[$key] = $rec;
-    // Schutz vor Aufblähen durch verteilte Angriffe: nur aktive Sperren behalten
-    if (count($all) > 2000) {
-        $all = array_filter($all, fn($r) => ($r['until'] ?? 0) >= $now);
+/* Einen Versuch reservieren: prüfen UND hochzählen in einem Schritt, unter
+ * einer Sperre. Getrennt (erst prüfen, später zählen) passieren bei
+ * gleichzeitigen Anfragen alle das Tor, bevor die erste
+ * hochgezählt hat – gemessen 10 statt 5 erlaubter Versuche. Deshalb wird der
+ * Versuch VOR der Passwortprüfung verbucht und bei Erfolg per clear_fails()
+ * wieder zurückgenommen.
+ * Rückgabe: 0 = Versuch erlaubt, sonst verbleibende Sperrsekunden. */
+function attempt_begin(string $key, int $max, int $lockSecs): int {
+    $now  = time();
+    $wait = 0;
+    with_locked_json(ATTEMPTS_FILE, function (array $all) use ($key, $max, $lockSecs, $now, &$wait) {
+        $rec = (array) ($all[$key] ?? ['count' => 0, 'until' => 0]);
+        if ((int) ($rec['until'] ?? 0) > $now) {       // gesperrt -> nicht mitzählen
+            $wait = (int) $rec['until'] - $now;
+            return null;
+        }
+        foreach ($all as $k => $r) {                   // abgelaufene Einträge aufräumen
+            if (($r['until'] ?? 0) < $now && ($r['count'] ?? 0) === 0) unset($all[$k]);
+        }
+        $rec['count'] = (int) ($rec['count'] ?? 0) + 1;
+        if ($rec['count'] >= $max) $rec = ['count' => 0, 'until' => $now + $lockSecs];
         $all[$key] = $rec;
-    }
-    save_json(ATTEMPTS_FILE, $all);
+        // Schutz vor Aufblähen durch verteilte Angriffe: nur aktive Sperren behalten
+        if (count($all) > 2000) {
+            $all = array_filter($all, fn($r) => ($r['until'] ?? 0) >= $now);
+            $all[$key] = $rec;
+        }
+        return $all;
+    });
+    return $wait;
 }
 function clear_fails(string $key): void {
-    $all = load_json(ATTEMPTS_FILE);
-    unset($all[$key]);
-    save_json(ATTEMPTS_FILE, $all);
+    with_locked_json(ATTEMPTS_FILE, function (array $all) use ($key) {
+        unset($all[$key]);
+        return $all;
+    });
 }
 
 /* ---------- Session (gehärtet) ------------------------------------- */
@@ -679,13 +735,19 @@ if ($loggedIn && time() - (int) ($_SESSION['seen'] ?? 0) > $idleTimeout) {
 }
 if ($loggedIn) $_SESSION['seen'] = time();
 
-// Auto-Login per „Angemeldet bleiben"-Cookie
-if (!$loggedIn && remember_try($cookieDir, $https)) {
+// Auto-Login per „Angemeldet bleiben"-Cookie. Der Fingerabdruck der
+// Zugangsdaten muss noch passen – sonst ist das Gerät abgemeldet (s. o.).
+$authFp = auth_fingerprint($passwordHash);
+if (!$loggedIn && remember_try($cookieDir, $https, $authFp)) {
     session_regenerate_id(true);
-    $_SESSION['auth'] = true;
-    $_SESSION['seen'] = time();
-    csrf_token();
-    $loggedIn = true;
+    if (!REMEMBER_SKIPS_2FA && (string) (load_json(AUTH_FILE)['totp'] ?? '') !== '') {
+        $_SESSION['totp_pending'] = true;   // 2FA auch auf bekannten Geräten
+    } else {
+        $_SESSION['auth'] = true;
+        $_SESSION['seen'] = time();
+        csrf_token();
+        $loggedIn = true;
+    }
 }
 
 /* ================================================================== *
@@ -695,7 +757,8 @@ if (!$loggedIn && remember_try($cookieDir, $https)) {
 $loginError = null;
 
 if (!$loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['password'])) {
-    $wait = lock_remaining($clientKey);
+    // Versuch zählt sofort mit; bei Erfolg nimmt clear_fails() ihn zurück.
+    $wait = attempt_begin($clientKey, $maxAttempts, $lockoutSeconds);
     if ($wait > 0) {
         $loginError = t('Zu viele Fehlversuche. Bitte %d Min. warten.', (int) ceil($wait / 60));
     } elseif (password_verify((string) $_POST['password'], $passwordHash)) {
@@ -710,11 +773,10 @@ if (!$loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST[
         $_SESSION['auth'] = true;
         $_SESSION['seen'] = time();
         csrf_token();
-        if (!empty($_POST['remember'])) remember_set($cookieDir, $https);
+        if (!empty($_POST['remember'])) remember_set($cookieDir, $https, $authFp);
         audit('login');
         redirect($self);
     } else {
-        register_fail($clientKey, $maxAttempts, $lockoutSeconds);
         audit('login_fail');
         usleep(300000);
         $loginError = t('Falsches Passwort.');
@@ -724,7 +786,7 @@ if (!$loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST[
 // Zweiter Schritt: TOTP-Code (oder Wiederherstellungs-Code) nach korrektem Passwort
 if (!$loggedIn && !empty($_SESSION['totp_pending'])
     && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['totpcode'])) {
-    $wait = lock_remaining($clientKey);
+    $wait = attempt_begin($clientKey, $maxAttempts, $lockoutSeconds);
     $secret = (string) (load_json(AUTH_FILE)['totp'] ?? '');
     $code   = (string) $_POST['totpcode'];
     $viaRecovery = false;
@@ -736,7 +798,7 @@ if (!$loggedIn && !empty($_SESSION['totp_pending'])
         $_SESSION['seen'] = time();
         csrf_token();
         clear_fails($clientKey);
-        if (!empty($_SESSION['totp_remember'])) remember_set($cookieDir, $https);
+        if (!empty($_SESSION['totp_remember'])) remember_set($cookieDir, $https, $authFp);
         unset($_SESSION['totp_pending'], $_SESSION['totp_remember']);
         audit($viaRecovery ? 'login_recovery' : 'login');
         if ($viaRecovery) {
@@ -745,7 +807,6 @@ if (!$loggedIn && !empty($_SESSION['totp_pending'])
         }
         redirect($self);
     } else {
-        register_fail($clientKey, $maxAttempts, $lockoutSeconds);
         audit('totp_fail');
         usleep(300000);
         $loginError = t('Falscher Code.');
@@ -907,7 +968,12 @@ if ($loggedIn && isset($_GET['export'])) {
 if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
     if (!csrf_ok()) { http_response_code(400); exit('Ungültiger CSRF-Token.'); }
 
-    $data   = load_data();
+    // Lesen und Speichern von urls.json gehören zusammen: ohne Sperre liest ein
+    // zweiter Schreibzugriff denselben Stand und überschreibt die Änderung des
+    // ersten – ein Link könnte unbemerkt verschwinden. Die Sperre hält bis zum
+    // redirect() am Ende des Blocks.
+    $dataLock = lock_data();
+    $data     = load_data();
     $action = (string) $_POST['action'];
     $slug   = clean_slug((string) ($_POST['slug'] ?? ''));
     // Sicherheits-/Datenrelevante Aktionen protokollieren (nicht das häufige „move")
@@ -1094,10 +1160,15 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
             $newp = (string) ($_POST['new'] ?? '');
             if (!password_verify($curp, $passwordHash)) flash(t('Aktuelles Passwort ist falsch.'));
             elseif (strlen($newp) < 8)                  flash(t('Neues Passwort: mindestens 8 Zeichen.'));
-            else {
-                save_hash(password_hash($newp, PASSWORD_DEFAULT))
-                    ? flash(t('Passwort geändert.'), 'success')
-                    : flash(t('Konnte nicht speichern – Schreibrechte prüfen.'));
+            elseif (!save_hash(password_hash($newp, PASSWORD_DEFAULT))) {
+                flash(t('Konnte nicht speichern – Schreibrechte prüfen.'));
+            } else {
+                // Ein Passwortwechsel ist die Geste, mit der man ein verlorenes
+                // Gerät aussperrt: alle „Angemeldet bleiben"-Zugänge verfallen
+                // (dieser Browser bleibt über die laufende Sitzung angemeldet).
+                remember_revoke_all($cookieDir, $https);
+                session_regenerate_id(true);
+                flash(t('Passwort geändert. Alle „Angemeldet bleiben“-Geräte wurden abgemeldet.'), 'success');
             }
         }
     } elseif ($action === 'restore') {
@@ -1131,13 +1202,16 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
         if ($name === '') {
             flash(t('Bitte einen Namen für den Token angeben.'));
         } else {
-            $tokens = load_api_tokens();
-            do { $tid = bin2hex(random_bytes(6)); } while (isset($tokens[$tid]));
             $secret = bin2hex(random_bytes(24));
             $scope  = !empty($_POST['readonly']) ? 'read' : 'write';
-            $tokens[$tid] = ['name' => $name, 'h' => hash('sha256', $secret), 'scope' => $scope,
-                             'created' => time(), 'used' => 0, 'calls' => 0];
-            if (save_api_tokens($tokens)) {
+            $tid    = '';
+            $ok = with_locked_json(API_TOKENS_FILE, function (array $tokens) use ($name, $secret, $scope, &$tid) {
+                do { $tid = bin2hex(random_bytes(6)); } while (isset($tokens[$tid]));
+                $tokens[$tid] = ['name' => $name, 'h' => hash('sha256', $secret), 'scope' => $scope,
+                                 'created' => time(), 'used' => 0, 'calls' => 0];
+                return $tokens;
+            });
+            if ($ok) {
                 $_SESSION['new_token'] = 'goto_' . $tid . '_' . $secret;
                 flash(t('API-Token „%s“ erstellt.', $name), 'success');
             } else {
@@ -1145,28 +1219,34 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
             }
         }
     } elseif ($action === 'token_revoke') {
-        $tid    = preg_replace('/[^0-9a-f]/', '', (string) ($_POST['id'] ?? ''));
-        $tokens = load_api_tokens();
-        if ($tid !== '' && isset($tokens[$tid])) {
+        $tid = preg_replace('/[^0-9a-f]/', '', (string) ($_POST['id'] ?? ''));
+        $hit = false;
+        with_locked_json(API_TOKENS_FILE, function (array $tokens) use ($tid, &$hit) {
+            if ($tid === '' || !isset($tokens[$tid])) return null;
             unset($tokens[$tid]);
-            save_api_tokens($tokens);
-            flash(t('API-Token widerrufen.'), 'success');
-        }
+            $hit = true;
+            return $tokens;
+        });
+        if ($hit) flash(t('API-Token widerrufen.'), 'success');
     } elseif ($action === 'device_revoke') {
         $sel = preg_replace('/[^0-9a-f]/', '', (string) ($_POST['sel'] ?? ''));
         $cur = explode(':', (string) ($_COOKIE[REMEMBER_COOKIE] ?? ''), 2)[0];
-        $tk  = load_json(TOKENS_FILE);
-        if ($sel !== '' && isset($tk[$sel])) {
+        $hit = false;
+        with_locked_json(TOKENS_FILE, function (array $tk) use ($sel, &$hit) {
+            if ($sel === '' || !isset($tk[$sel])) return null;
             unset($tk[$sel]);
-            save_json(TOKENS_FILE, $tk);
+            $hit = true;
+            return $tk;
+        });
+        if ($hit) {
             if ($sel === $cur) remember_forget($cookieDir, $https);   // eigenes Gerät -> Cookie mit weg
             flash(t('Gerät abgemeldet.'), 'success');
         }
     } elseif ($action === 'device_revoke_others') {
         $cur = explode(':', (string) ($_COOKIE[REMEMBER_COOKIE] ?? ''), 2)[0];
-        $tk  = load_json(TOKENS_FILE);
-        $keep = ($cur !== '' && isset($tk[$cur])) ? [$cur => $tk[$cur]] : [];
-        save_json(TOKENS_FILE, $keep);
+        with_locked_json(TOKENS_FILE, function (array $tk) use ($cur) {
+            return ($cur !== '' && isset($tk[$cur])) ? [$cur => $tk[$cur]] : [];
+        });
         flash(t('Andere Geräte abgemeldet.'), 'success');
     } elseif ($action === 'totp_setup') {
         $_SESSION['totp_new'] = base32_encode(random_bytes(20));
@@ -1180,25 +1260,30 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
             flash(t('Falscher Code.'));
         } else {
             $rc = recovery_generate();
-            $a = load_json(AUTH_FILE);
-            $a['totp'] = $sec;
-            $a['totp_recovery'] = $rc['hashes'];
-            if (save_json(AUTH_FILE, $a)) {
+            if (with_locked_json(AUTH_FILE, function (array $a) use ($sec, $rc) {
+                    $a['totp'] = $sec;
+                    $a['totp_recovery'] = $rc['hashes'];
+                    return $a;
+                })) {
                 $_SESSION['recovery_show'] = $rc['display'];   // einmalig anzeigen
-                flash(t('Zwei-Faktor-Authentifizierung aktiviert.'), 'success');
+                // 2FA zu aktivieren ändert den Zugangsdaten-Abdruck: bestehende
+                // „Angemeldet bleiben"-Geräte müssten sich sonst nie mit Code anmelden.
+                remember_revoke_all($cookieDir, $https);
+                flash(t('Zwei-Faktor-Authentifizierung aktiviert. Alle „Angemeldet bleiben“-Geräte wurden abgemeldet.'), 'success');
             } else {
                 flash(t('Konnte nicht speichern – Schreibrechte prüfen.'));
             }
             unset($_SESSION['totp_new']);
         }
     } elseif ($action === 'recovery_regen') {
-        $a = load_json(AUTH_FILE);
-        if ((string) ($a['totp'] ?? '') === '') {
+        if ((string) (load_json(AUTH_FILE)['totp'] ?? '') === '') {
             flash(t('2FA ist nicht aktiv.'));
         } else {
             $rc = recovery_generate();
-            $a['totp_recovery'] = $rc['hashes'];
-            save_json(AUTH_FILE, $a);
+            with_locked_json(AUTH_FILE, function (array $a) use ($rc) {
+                $a['totp_recovery'] = $rc['hashes'];
+                return $a;
+            });
             $_SESSION['recovery_show'] = $rc['display'];
             flash(t('Neue Wiederherstellungs-Codes erzeugt – die alten sind ungültig.'), 'success');
         }
@@ -1231,12 +1316,15 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
         if (!password_verify((string) ($_POST['current'] ?? ''), $passwordHash)) {
             flash(t('Aktuelles Passwort ist falsch.'));
         } else {
-            $a = load_json(AUTH_FILE);
-            unset($a['totp'], $a['totp_recovery']);
-            save_json(AUTH_FILE, $a);
-            flash(t('Zwei-Faktor-Authentifizierung deaktiviert.'), 'success');
+            with_locked_json(AUTH_FILE, function (array $a) {
+                unset($a['totp'], $a['totp_recovery']);
+                return $a;
+            });
+            remember_revoke_all($cookieDir, $https);   // Abdruck geändert – Geräte sauber abmelden
+            flash(t('Zwei-Faktor-Authentifizierung deaktiviert. Alle „Angemeldet bleiben“-Geräte wurden abgemeldet.'), 'success');
         }
     }
+    unlock_data($dataLock);
     redirect($self);
 }
 
@@ -1726,7 +1814,9 @@ unset($_SESSION['recovery_show']);
     <button type="button" class="btn btn--ghost btn--small" data-copy="<?= e(implode(' ', $recoveryShow)) ?>"><?= icon('copy') ?><?= t('Codes kopieren') ?></button>
   <?php endif; ?>
   <?php if ($totpSecret !== ''): ?>
-    <p class="muted"><?= t('2FA ist aktiv. Beim Anmelden wird zusätzlich ein Code aus deiner Authenticator-App abgefragt. „Angemeldet bleiben“-Geräte überspringen die Abfrage.') ?>
+    <p class="muted"><?= REMEMBER_SKIPS_2FA
+          ? t('2FA ist aktiv. Beim Anmelden wird zusätzlich ein Code aus deiner Authenticator-App abgefragt. „Angemeldet bleiben“-Geräte überspringen die Abfrage (abschaltbar über „remember_skips_2fa" in config.php).')
+          : t('2FA ist aktiv. Beim Anmelden wird zusätzlich ein Code aus deiner Authenticator-App abgefragt – auch auf Geräten mit „Angemeldet bleiben“.') ?>
        <?= t('Wiederherstellungs-Codes übrig: %d.', $recoveryLeft) ?></p>
     <form class="bar bar--end" method="post" autocomplete="off">
       <input type="hidden" name="action" value="totp_disable">
@@ -1786,7 +1876,10 @@ uasort($devices, fn($a, $b) => (int) ($b['seen'] ?? 0) <=> (int) ($a['seen'] ?? 
 <?php if ($devices): ?>
 <details class="tools">
   <summary><?= icon('logout') ?><?= t('Angemeldete Geräte') ?> <span class="count"><?= count($devices) ?></span></summary>
-  <p class="muted"><?= t('Geräte mit aktivem „Angemeldet bleiben"-Zugang. Diese überspringen beim Login auch die 2FA-Abfrage – unbekannte hier abmelden.') ?></p>
+  <p class="muted"><?= REMEMBER_SKIPS_2FA
+        ? t('Geräte mit aktivem „Angemeldet bleiben"-Zugang. Diese überspringen beim Login auch die 2FA-Abfrage – unbekannte hier abmelden.')
+        : t('Geräte mit aktivem „Angemeldet bleiben"-Zugang – unbekannte hier abmelden.') ?>
+     <?= t('Bei einem Passwortwechsel und beim Ein-/Ausschalten der 2FA verfallen alle Geräte automatisch.') ?></p>
   <table class="trashlist">
     <?php foreach ($devices as $sel => $dv): ?>
     <tr>

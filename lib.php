@@ -39,6 +39,9 @@ define('URLS_FILE',       $dataDir . '/urls.json');
 define('CLICKS_FILE',     $dataDir . '/clicks.json');
 define('TRASH_FILE',      $dataDir . '/.ht_trash.json');
 define('API_TOKENS_FILE', $dataDir . '/.ht_apitokens.json');
+// Reine Sperrdatei für urls.json-Schreibzyklen (bleibt leer). Name mit „.ht_",
+// damit die .htaccess-Regel für Punkt-Dateien sie ohnehin abdeckt.
+define('DATA_LOCK_FILE',  $dataDir . '/.ht_data.lock');
 
 /* ---- HTTPS-Erkennung (inkl. Reverse-Proxy) ----------------------- */
 
@@ -59,9 +62,64 @@ function load_json(string $file): array {
 function save_json(string $file, array $data): bool {
     $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     if ($json === false) return false;                    // ungültige Daten -> nicht schreiben
-    $tmp = $file . '.tmp';
+    // Eindeutiger Temp-Name je Prozess: bei einem gemeinsamen „.tmp" könnte
+    // Prozess A die halb geschriebene Datei von Prozess B an ihr Ziel umbenennen.
+    $tmp = $file . '.' . getmypid() . '.tmp';
     if (@file_put_contents($tmp, $json, LOCK_EX) === false) return false;
-    return @rename($tmp, $file);                          // rename ist atomar (gleiches Dateisystem)
+    if (@rename($tmp, $file)) return true;                // rename ist atomar (gleiches Dateisystem)
+    @unlink($tmp);
+    return false;
+}
+
+/* ---- Lesen-Ändern-Schreiben unter Sperre ---------------------------
+ * load_json() + save_json() nacheinander verliert bei gleichzeitigen
+ * Zugriffen Änderungen (letzter Schreiber gewinnt): zwei parallele Anfragen
+ * lesen denselben Stand und überschreiben sich gegenseitig. Das trifft
+ * ausgerechnet die Zähler, auf die Verlass sein muss – Login-Sperre,
+ * API-Rate-Limit, Protokoll.
+ *
+ * with_locked_json() hält dieselbe Datei über den ganzen Zyklus exklusiv
+ * gesperrt (dasselbe Muster, das count_click() in index.php schon nutzt).
+ * $fn bekommt den aktuellen Stand und gibt den neuen zurück; null = nicht
+ * schreiben. Rückgabe: true, wenn gelesen und ggf. geschrieben werden konnte. */
+function with_locked_json(string $file, callable $fn): bool {
+    $fp = @fopen($file, 'c+');
+    if (!$fp) return false;
+    try {
+        if (!flock($fp, LOCK_EX)) return false;
+        $cur  = stream_get_contents($fp);
+        $data = ($cur !== '' && $cur !== false) ? json_decode($cur, true) : [];
+        if (!is_array($data)) $data = [];
+        $new = $fn($data);
+        if ($new === null) return true;                   // nichts zu ändern
+        $json = json_encode($new, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if ($json === false) return false;
+        rewind($fp);
+        if (!ftruncate($fp, 0)) return false;
+        $ok = fwrite($fp, $json) !== false;
+        fflush($fp);
+        return $ok;
+    } finally {
+        flock($fp, LOCK_UN);
+        fclose($fp);
+    }
+}
+
+/* Exklusive Sperre für einen kompletten urls.json-Zyklus (load_data() …
+ * save_data()). Die Sperre liegt auf einer eigenen Datei, weil save_data()
+ * urls.json per rename() ersetzt – eine Sperre auf urls.json selbst wäre
+ * danach wertlos. Das zurückgegebene Handle offen halten, solange der Zyklus
+ * läuft; PHP gibt die Sperre spätestens am Skriptende frei.
+ * Rückgabe: Handle oder null (dann läuft es wie bisher ungesperrt weiter –
+ * eine fehlende Sperrdatei darf das Speichern nicht verhindern). */
+function lock_data() {
+    $fp = @fopen(DATA_LOCK_FILE, 'c');
+    if (!$fp) return null;
+    if (!flock($fp, LOCK_EX)) { fclose($fp); return null; }
+    return $fp;
+}
+function unlock_data($fp): void {
+    if ($fp) { flock($fp, LOCK_UN); fclose($fp); }
 }
 
 /* ---- Validierung / Bereinigung ----------------------------------- */

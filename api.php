@@ -79,30 +79,43 @@ if (!preg_match('/^goto_([0-9a-f]{12})_([0-9a-f]{48})$/', $token, $m)) {
 }
 [$full, $id, $secret] = $m;
 
-$tokens = load_json(API_TOKENS_FILE);
-$rec    = $tokens[$id] ?? null;
-if (!is_array($rec) || !hash_equals((string) ($rec['h'] ?? ''), hash('sha256', $secret))) {
+/* ---- Prüfen, zählen und drosseln – alles unter einer Sperre -------
+ * Lesen und Zurückschreiben müssen zusammenfallen: sonst lesen gleichzeitige
+ * Anfragen denselben Zählerstand und überschreiben sich gegenseitig. Das
+ * Limit ließe sich dann schlicht durch paralleles Anfragen überschreiten
+ * (gemessen: 29 von 30 Anfragen kamen am Limit noch durch). */
+
+$rec     = null;
+$limited = false;
+$min     = (int) (time() / 60);
+
+with_locked_json(API_TOKENS_FILE, function (array $tokens) use ($id, $secret, $min, &$rec, &$limited) {
+    $r = $tokens[$id] ?? null;
+    if (!is_array($r) || !hash_equals((string) ($r['h'] ?? ''), hash('sha256', $secret))) {
+        return null;                      // unbekannter Token -> nichts schreiben
+    }
+    $rl = (is_array($r['rl'] ?? null)) ? $r['rl'] : ['m' => 0, 'n' => 0];
+    if ((int) ($rl['m'] ?? 0) === $min) {
+        if ((int) ($rl['n'] ?? 0) >= API_RATE_MAX) { $limited = true; $rec = $r; return null; }
+        $rl['n'] = (int) ($rl['n'] ?? 0) + 1;
+    } else {
+        $rl = ['m' => $min, 'n' => 1];
+    }
+    $r['rl']    = $rl;
+    $r['used']  = time();
+    $r['calls'] = (int) ($r['calls'] ?? 0) + 1;
+    $rec        = $r;
+    $tokens[$id] = $r;
+    return $tokens;
+});
+
+if ($rec === null) {
     respond(401, ['ok' => false, 'error' => 'unauthorized', 'message' => 'Invalid API token.']);
 }
-
-/* ---- Rate-Limit (pro Token, je Minute) --------------------------- */
-
-$min = (int) (time() / 60);
-$rl  = (is_array($rec['rl'] ?? null)) ? $rec['rl'] : ['m' => 0, 'n' => 0];
-if ((int) ($rl['m'] ?? 0) === $min) {
-    if ((int) ($rl['n'] ?? 0) >= API_RATE_MAX) {
-        header('Retry-After: ' . (60 - (time() % 60)));
-        respond(429, ['ok' => false, 'error' => 'rate_limited', 'message' => 'Too many requests, slow down.']);
-    }
-    $rl['n'] = (int) ($rl['n'] ?? 0) + 1;
-} else {
-    $rl = ['m' => $min, 'n' => 1];
+if ($limited) {
+    header('Retry-After: ' . (60 - (time() % 60)));
+    respond(429, ['ok' => false, 'error' => 'rate_limited', 'message' => 'Too many requests, slow down.']);
 }
-$rec['rl']    = $rl;
-$rec['used']  = time();
-$rec['calls'] = (int) ($rec['calls'] ?? 0) + 1;
-$tokens[$id]  = $rec;
-save_json(API_TOKENS_FILE, $tokens);
 
 /* ---- Scope: Nur-Lese-Token dürfen keine schreibenden Methoden -----
  * Erst nach Rate-Limit und Zählern: ein abgelehnter Schreibversuch soll
@@ -140,6 +153,12 @@ function link_out(string $slug, array $l, array $clicks, bool $withDays = false)
     }
     return $o;
 }
+
+/* Schreibende Methoden halten urls.json über den ganzen Lesen-Ändern-Schreiben-
+ * Zyklus gesperrt – sonst können zwei gleichzeitige Anfragen denselben Stand
+ * lesen und einer der beiden neuen Links geht verloren. respond() beendet das
+ * Skript, womit PHP die Sperre wieder freigibt. */
+$dataLock = in_array($method, ['POST', 'PATCH', 'DELETE'], true) ? lock_data() : null;
 
 $data = load_data();
 
