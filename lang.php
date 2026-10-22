@@ -169,6 +169,8 @@ return [
     'Aktuelles Passwort ist falsch.'     => 'Current password is wrong.',
     'Neues Passwort: mindestens 8 Zeichen.' => 'New password: at least 8 characters.',
     'Passwort geändert.'                 => 'Password changed.',
+    'Passwort geändert. Alle „Angemeldet bleiben“-Geräte wurden abgemeldet.'
+        => 'Password changed. All “stay logged in” devices have been signed out.',
     'Zu viele Fehlversuche. Bitte %d Min. warten.' => 'Too many failed attempts. Please wait %d min.',
 
     // API-Zugang
@@ -200,6 +202,10 @@ return [
     'Angemeldete Geräte'                 => 'Signed-in devices',
     'Geräte mit aktivem „Angemeldet bleiben"-Zugang. Diese überspringen beim Login auch die 2FA-Abfrage – unbekannte hier abmelden.'
         => 'Devices with active “stay logged in” access. These also skip the 2FA prompt at login – sign out any you don’t recognise.',
+    'Geräte mit aktivem „Angemeldet bleiben"-Zugang – unbekannte hier abmelden.'
+        => 'Devices with active “stay logged in” access – sign out any you don’t recognise.',
+    'Bei einem Passwortwechsel und beim Ein-/Ausschalten der 2FA verfallen alle Geräte automatisch.'
+        => 'All devices expire automatically when the password changes or 2FA is switched on or off.',
     'Unbekanntes Gerät'                  => 'Unknown device',
     'dieses Gerät'                       => 'this device',
     'seit %s'                            => 'since %s',
@@ -354,6 +360,10 @@ return [
     'Zwei-Faktor-Authentifizierung (2FA)' => 'Two-factor authentication (2FA)',
     '2FA ist aktiv. Beim Anmelden wird zusätzlich ein Code aus deiner Authenticator-App abgefragt. „Angemeldet bleiben“-Geräte überspringen die Abfrage.'
         => '2FA is enabled. Signing in additionally asks for a code from your authenticator app. “Stay logged in” devices skip the prompt.',
+    '2FA ist aktiv. Beim Anmelden wird zusätzlich ein Code aus deiner Authenticator-App abgefragt. „Angemeldet bleiben“-Geräte überspringen die Abfrage (abschaltbar über „remember_skips_2fa" in config.php).'
+        => '2FA is enabled. Signing in additionally asks for a code from your authenticator app. “Stay logged in” devices skip the prompt (switch it off via “remember_skips_2fa” in config.php).',
+    '2FA ist aktiv. Beim Anmelden wird zusätzlich ein Code aus deiner Authenticator-App abgefragt – auch auf Geräten mit „Angemeldet bleiben“.'
+        => '2FA is enabled. Signing in additionally asks for a code from your authenticator app – including on “stay logged in” devices.',
     '2FA deaktivieren'                   => 'Disable 2FA',
     '2FA einrichten'                     => 'Set up 2FA',
     'Scanne den QR-Code mit deiner Authenticator-App (z. B. Apple Passwörter, Google Authenticator) und bestätige mit einem Code:'
@@ -365,6 +375,10 @@ return [
     'Falscher Code.'                     => 'Wrong code.',
     'Zwei-Faktor-Authentifizierung aktiviert.'   => 'Two-factor authentication enabled.',
     'Zwei-Faktor-Authentifizierung deaktiviert.' => 'Two-factor authentication disabled.',
+    'Zwei-Faktor-Authentifizierung aktiviert. Alle „Angemeldet bleiben“-Geräte wurden abgemeldet.'
+        => 'Two-factor authentication enabled. All “stay logged in” devices have been signed out.',
+    'Zwei-Faktor-Authentifizierung deaktiviert. Alle „Angemeldet bleiben“-Geräte wurden abgemeldet.'
+        => 'Two-factor authentication disabled. All “stay logged in” devices have been signed out.',
     'Schütze die Anmeldung zusätzlich mit Einmal-Codes aus einer Authenticator-App (TOTP). Funktioniert komplett offline und ohne Datenbank.'
         => 'Additionally protect sign-in with one-time codes from an authenticator app (TOTP). Works fully offline, no database needed.',
     'Sicherheits-Code aus der Authenticator-App' => 'Security code from your authenticator app',

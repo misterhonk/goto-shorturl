@@ -19,3 +19,6 @@ test.env
 *.zip
 .DS_Store
 dist/
+
+# Laufzeit-Sperrdatei
+.ht_data.lock
