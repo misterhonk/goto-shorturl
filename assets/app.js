@@ -109,7 +109,7 @@
   if(selall) selall.addEventListener('change',function(){ boxes.forEach(function(b){ b.checked=selall.checked; }); upd(); });
   var bulk=document.getElementById('bulk');
   if(bulk) bulk.addEventListener('submit',function(e){
-    if(!boxes.some(function(b){return b.checked;})){ e.preventDefault(); alert('Bitte zuerst Links markieren.'); }
+    if(!boxes.some(function(b){return b.checked;})){ e.preventDefault(); alert(bulk.getAttribute('data-l-noselection')||'Bitte zuerst Links markieren.'); }
   });
 
   // Inline-URL-Validierung (+ Duplikat-Hinweis am Anlege-Feld)

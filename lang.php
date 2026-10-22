@@ -82,6 +82,15 @@ return [
     'Noch keine Links angelegt.'         => 'No links yet.',
     'QR-Code'                            => 'QR code',
     'Kurzlink kopieren'                  => 'Copy short link',
+    'abgelaufen'                         => 'expired',
+    'Nach diesem Tag ist der Link gesperrt' => 'After this day the link is blocked',
+    'Bitte zuerst Links markieren.'      => 'Please select links first.',
+    'Ungültiger CSRF-Token.'             => 'Invalid CSRF token.',
+    'Akzeptiert %1$s oder %2$s (Spalten: %3$s).' => 'Accepts %1$s or %2$s (columns: %3$s).',
+    'Ohne Häkchen werden alle bestehenden Einträge %s.' => 'Without the checkbox, all existing entries are %s.',
+    'ersetzt'                            => 'replaced',
+    'Klick-Zähler und Papierkorb sind nur im Voll-Backup enthalten.'
+        => 'Click counts and the trash are only included in the full backup.',
     'Bearbeiten'                         => 'Edit',
     'Aufrufe gesamt (anonym) – Verlauf der letzten 14 Tage' => 'Total clicks (anonymous) – last 14 days',
 

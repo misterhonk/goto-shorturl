@@ -5,6 +5,32 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+### Barrierefreiheit
+- **Sichtbarer Tastaturfokus.** Der Fokusring war ein halbtransparenter
+  Schein mit nur 1,36:1 (hell) bzw. 1,53:1 (dunkel) Kontrast zum Grund –
+  gefordert sind 3:1. Jetzt ein deckender Ring in `--blue` mit Abstand zur
+  Fläche (neues Token `--focus`): 4,70:1 hell, 4,66:1 dunkel. Gilt für
+  Buttons, die Statistik-Kachel und Checkboxen.
+- **Primärbutton hält AA in beiden Modi.** Weiß auf Blau lag im Dunkelmodus
+  bei 3,65:1 (AA verlangt 4,5:1), beim Hover sogar bei 3,05:1; auch der
+  Hover im Hellmodus fiel mit 4,32:1 durch. Eigene Button-Töne
+  (`--btn-fill`, `--btn-fill-hover`) – jetzt 4,70/5,57 hell und 4,81/5,66
+  dunkel. `--blue` für Links und Text bleibt unverändert.
+
+### Behoben
+- **Deutsche Reste in der englischen Oberfläche:** der Ablauf-Chip
+  („abgelaufen"), der Tooltip am Ablaufdatum, der komplette Hilfetext beim
+  Import, die Meldung „Bitte zuerst Links markieren." bei leerer
+  Stapel-Auswahl, die CSRF-Fehlermeldung und das `aria-label` des
+  Kopier-Knopfs laufen jetzt über `t()` bzw. `data-l-*`.
+- **Falsche Aussage im Import-Hilfetext:** „Klick-Zähler werden nicht
+  exportiert" stimmte seit dem Voll-Backup nicht mehr. Jetzt: Klick-Zähler
+  und Papierkorb sind nur im Voll-Backup enthalten.
+- **`assets/qr.js` ohne Cache-Buster:** Als einzige Asset-Datei wurde der
+  QR-Encoder ohne `?v=` geladen und konnte nach einem Update veraltet im
+  Browser-Cache bleiben. Jetzt wie `goto.css` und `app.js` mit
+  Änderungszeit.
+
 ## [1.3.1] – 2026-10-22
 
 ### Sicherheit
