@@ -6,6 +6,11 @@
   --line:rgba(0,0,0,.08); --line-strong:rgba(0,0,0,.16);
   --fill:rgba(0,0,0,.05);
   --blue:#0071e3; --blue-dark:#0077ed; --red:#ff3b30; --red-dark:#e0302a;
+  /* Button-Flächen mit weißer Schrift: eigene Töne, damit Füllung UND Hover
+     AA (4,5:1) halten – --blue bleibt für Links/Text. */
+  --btn-fill:#0071e3; --btn-fill-hover:#0066cc;
+  /* Fokus: deckender Ring mit Abstand (≥3:1 ggü. Grund, WCAG 1.4.11) */
+  --focus:0 0 0 2px var(--card),0 0 0 4px var(--blue);
   --ok-bg:#e8f8ef; --ok-fg:#1d7a3d; --ok-line:#b5e6c8;
   --err-bg:#fdeeee; --err-fg:#c92a25; --err-line:#f6c6c3;
   --info-bg:#eaf3fe; --info-fg:#1160b6; --info-line:#c4ddf9;
@@ -21,6 +26,7 @@
     --line:rgba(255,255,255,.09); --line-strong:rgba(255,255,255,.18);
     --fill:rgba(255,255,255,.07);
     --blue:#0a84ff; --blue-dark:#3395ff; --red:#ff453a; --red-dark:#ff6961;
+    --btn-fill:#0a6fe0; --btn-fill-hover:#0a64cc;
     --ok-bg:#0c2c22; --ok-fg:#4ade80; --ok-line:#14543c;
     --err-bg:#2a1416; --err-fg:#fca5a5; --err-line:#5b1d1d;
     --info-bg:#0f1f3a; --info-fg:#93c5fd; --info-line:#1e3a64;
@@ -34,6 +40,7 @@
   --line:rgba(255,255,255,.09); --line-strong:rgba(255,255,255,.18);
   --fill:rgba(255,255,255,.07);
   --blue:#0a84ff; --blue-dark:#3395ff; --red:#ff453a; --red-dark:#ff6961;
+  --btn-fill:#0a6fe0; --btn-fill-hover:#0a64cc;
   --ok-bg:#0c2c22; --ok-fg:#4ade80; --ok-line:#14543c;
   --err-bg:#2a1416; --err-fg:#fca5a5; --err-line:#5b1d1d;
   --info-bg:#0f1f3a; --info-fg:#93c5fd; --info-line:#1e3a64;
@@ -85,7 +92,7 @@ button.stat--btn .stat-label .ico{width:12px;height:12px;margin-left:.35rem;
      color:var(--blue);vertical-align:-2px}
 button.stat--btn:hover{border-color:var(--line-strong)}
 button.stat--btn:active{transform:scale(.985)}
-button.stat--btn:focus-visible{outline:none;box-shadow:0 0 0 4px var(--ring)}
+button.stat--btn:focus-visible{outline:none;box-shadow:var(--focus)}
 
 .panel,.group{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
      box-shadow:var(--shadow);padding:1.15rem 1.2rem;margin-bottom:1.1rem}
@@ -133,7 +140,7 @@ input[type=checkbox]{appearance:none;-webkit-appearance:none;width:18px;height:1
 input[type=checkbox]:checked{background:var(--blue);border-color:var(--blue)}
 input[type=checkbox]:checked::after{content:"";position:absolute;left:5px;top:2px;width:4px;height:8px;
      border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
-input[type=checkbox]:focus-visible{outline:none;box-shadow:0 0 0 3px var(--ring)}
+input[type=checkbox]:focus-visible{outline:none;box-shadow:var(--focus)}
 
 /* Buttons: Pills mit sanften Zuständen */
 .btn{font:inherit;font-weight:500;font-size:.85rem;padding:.55rem 1rem;border:1px solid transparent;
@@ -141,9 +148,9 @@ input[type=checkbox]:focus-visible{outline:none;box-shadow:0 0 0 3px var(--ring)
      align-items:center;justify-content:center;gap:.4rem;line-height:1;white-space:nowrap;
      transition:background .18s,border-color .18s,color .18s,transform .12s,box-shadow .18s}
 .btn:active{transform:scale(.96)}
-.btn:focus-visible{outline:none;box-shadow:0 0 0 4px var(--ring)}
-.btn--primary{background:var(--blue);color:#fff}
-.btn--primary:hover{background:var(--blue-dark)}
+.btn:focus-visible{outline:none;box-shadow:var(--focus)}
+.btn--primary{background:var(--btn-fill);color:#fff}
+.btn--primary:hover{background:var(--btn-fill-hover)}
 /* Destruktiv = ruhig bis zum Hover (rotes Icon, Füllung erst bei Absicht) */
 .btn--danger{background:transparent;color:var(--red);border-color:var(--line-strong)}
 .btn--danger:hover{background:var(--red);border-color:var(--red);color:#fff}

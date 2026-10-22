@@ -436,7 +436,7 @@ function head(string $title, string $nonce): void {
 function foot(string $nonce): void {
     $dir = rtrim(dirname($_SERVER['SCRIPT_NAME'] ?? '/'), '/') . '/';
     ?>
-<script src="<?= e($dir) ?>assets/qr.js" nonce="<?= $nonce ?>"></script>
+<script src="<?= e($dir) ?>assets/qr.js?v=<?= (int) @filemtime(__DIR__ . '/assets/qr.js') ?>" nonce="<?= $nonce ?>"></script>
 <script src="<?= e($dir) ?>assets/app.js?v=<?= (int) @filemtime(__DIR__ . '/assets/app.js') ?>"></script>
 </body>
 </html>
@@ -621,7 +621,7 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
               </div>
             </div>
           </td>
-          <td class="target" title="<?= e($url) ?>"><?= e($url) ?><?php if (link_dead($GLOBALS['linkcheck'][$slug] ?? null)): ?><span class="chip chip--exp" title="<?= t('Ziel nicht erreichbar (letzte Prüfung)') ?>"><?= icon('x') ?><?= t('toter Link') ?></span><?php endif; ?><?php if (($l['pass'] ?? '') !== ''): ?><span class="chip chip--lock" title="<?= t('passwortgeschützt') ?>"><?= icon('lock') ?></span><?php endif; ?><?php if (!empty($l['preview'])): ?><span class="chip chip--lock" title="<?= t('Vorschau-Seite aktiv') ?>"><?= icon('eye') ?></span><?php endif; ?><?php if (!empty($l['alts']) && is_array($l['alts'])): ?><span class="chip chip--date" title="<?= t('Rotation: Ziel wird bei jedem Aufruf gewählt') ?>"><?= icon('qr') ?><?= t('Rotation') ?> <?= count($l['alts']) + 1 ?></span><?php endif; ?><?php if (is_pending((string) ($l['starts'] ?? ''))): ?><span class="chip chip--date" title="<?= t('Wird erst ab diesem Tag aktiv') ?>"><?= icon('calendar') ?><?= t('ab') ?> <?= e((string) $l['starts']) ?></span><?php endif; ?><?php if ($l['expires'] !== ''): ?><span class="chip <?= is_expired($l['expires']) ? 'chip--exp' : 'chip--date' ?>"><?= icon('calendar') ?><?= is_expired($l['expires']) ? 'abgelaufen' : e($l['expires']) ?></span><?php endif; ?></td>
+          <td class="target" title="<?= e($url) ?>"><?= e($url) ?><?php if (link_dead($GLOBALS['linkcheck'][$slug] ?? null)): ?><span class="chip chip--exp" title="<?= t('Ziel nicht erreichbar (letzte Prüfung)') ?>"><?= icon('x') ?><?= t('toter Link') ?></span><?php endif; ?><?php if (($l['pass'] ?? '') !== ''): ?><span class="chip chip--lock" title="<?= t('passwortgeschützt') ?>"><?= icon('lock') ?></span><?php endif; ?><?php if (!empty($l['preview'])): ?><span class="chip chip--lock" title="<?= t('Vorschau-Seite aktiv') ?>"><?= icon('eye') ?></span><?php endif; ?><?php if (!empty($l['alts']) && is_array($l['alts'])): ?><span class="chip chip--date" title="<?= t('Rotation: Ziel wird bei jedem Aufruf gewählt') ?>"><?= icon('qr') ?><?= t('Rotation') ?> <?= count($l['alts']) + 1 ?></span><?php endif; ?><?php if (is_pending((string) ($l['starts'] ?? ''))): ?><span class="chip chip--date" title="<?= t('Wird erst ab diesem Tag aktiv') ?>"><?= icon('calendar') ?><?= t('ab') ?> <?= e((string) $l['starts']) ?></span><?php endif; ?><?php if ($l['expires'] !== ''): ?><span class="chip <?= is_expired($l['expires']) ? 'chip--exp' : 'chip--date' ?>"><?= icon('calendar') ?><?= is_expired($l['expires']) ? t('abgelaufen') : e($l['expires']) ?></span><?php endif; ?></td>
           <td class="clickcell"><button type="button" class="clicks" data-slug="<?= e($slug) ?>" data-total="<?= clicks_total($clicks, $slug) ?>" data-days="<?= e(json_encode(clicks_days($clicks, $slug), JSON_FORCE_OBJECT)) ?>" data-src="<?= e(json_encode((object) clicks_sources($clicks, $slug), JSON_FORCE_OBJECT)) ?>" title="<?= t('Klick-Verlauf anzeigen') ?>" aria-label="<?= t('Klick-Verlauf anzeigen') ?>"><?php $spark = sparkline_svg(clicks_days($clicks, $slug)); echo $spark ?: icon('bars'); ?><?= clicks_total($clicks, $slug) ?></button></td>
           <td class="movecell">
             <form method="post" class="inline">
@@ -633,7 +633,7 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
           </td>
           <td class="actions">
             <button type="button" class="btn btn--ghost btn--small" data-qr="<?= e($short) ?>" data-slug="<?= e($slug) ?>" data-title="<?= e($l['title']) ?>" title="<?= t('QR-Code') ?>" aria-label="<?= t('QR-Code') ?>"><?= icon('qr') ?></button>
-            <button type="button" class="btn btn--ghost btn--small" data-copy="<?= e($short) ?>" title="<?= t('Kurzlink kopieren') ?>" aria-label="Kopieren"><?= icon('copy') ?></button>
+            <button type="button" class="btn btn--ghost btn--small" data-copy="<?= e($short) ?>" title="<?= t('Kurzlink kopieren') ?>" aria-label="<?= t('Kurzlink kopieren') ?>"><?= icon('copy') ?></button>
             <a class="btn btn--ghost btn--small" href="<?= e($self) ?>?edit=<?= urlencode($slug) ?>" title="<?= t('Bearbeiten') ?>" aria-label="<?= t('Bearbeiten') ?>"><?= icon('edit') ?></a>
             <form class="inline" method="post" data-confirm="<?= e(t('„%s“ wirklich löschen?', $slug)) ?>">
               <input type="hidden" name="action" value="delete">
@@ -966,7 +966,7 @@ if ($loggedIn && isset($_GET['export'])) {
  * ================================================================== */
 
 if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
-    if (!csrf_ok()) { http_response_code(400); exit('Ungültiger CSRF-Token.'); }
+    if (!csrf_ok()) { http_response_code(400); exit(t('Ungültiger CSRF-Token.')); }
 
     // Lesen und Speichern von urls.json gehören zusammen: ohne Sperre liest ein
     // zweiter Schreibzugriff denselben Stand und überschreibt die Änderung des
@@ -1497,7 +1497,7 @@ foreach ($links as $s => $l) { $k = $normUrl((string) $l['url']); if ($k !== '' 
       <label class="field field--date">
         <span class="field-label"><?= t('Ablaufdatum (optional)') ?></span>
         <span class="datefield">
-          <input form="addform" type="date" name="expires" title="Nach diesem Tag ist der Link gesperrt">
+          <input form="addform" type="date" name="expires" title="<?= t('Nach diesem Tag ist der Link gesperrt') ?>">
           <button type="button" class="btn btn--ghost btn--small datefield-clear" data-clear-date title="<?= t('Ablauf entfernen') ?>"><?= icon('x') ?></button>
         </span>
       </label>
@@ -1554,7 +1554,7 @@ foreach ($links as $s => $l) { $k = $normUrl((string) $l['url']); if ($k !== '' 
   </form>
 <?php endif; ?>
 
-<form id="bulk" class="panel bulkbar" method="post">
+<form id="bulk" class="panel bulkbar" method="post" data-l-noselection="<?= e(t('Bitte zuerst Links markieren.')) ?>">
   <input type="hidden" name="action" value="bulk">
   <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
   <label class="chk"><input type="checkbox" id="selall"> <span id="selcount" data-tpl="<?= e(t('%d markiert')) ?>"><?= t('%d markiert', 0) ?></span></label>
@@ -1775,8 +1775,9 @@ foreach ($links as $s => $l) { $k = $normUrl((string) $l['url']); if ($k !== '' 
     <label class="chk"><input type="checkbox" name="merge" value="1"> <?= t('mit Bestand zusammenführen') ?></label>
     <button class="btn btn--ghost"><?= icon('upload') ?><?= t('Importieren') ?></button>
   </form>
-  <p class="muted">Akzeptiert <strong>JSON</strong> oder <strong>CSV</strong> (Spalten: <code>url,slug,group,title,expires</code>).
-  Ohne Häkchen werden alle bestehenden Einträge <strong>ersetzt</strong>. Klick-Zähler werden nicht exportiert.</p>
+  <p class="muted"><?= t('Akzeptiert %1$s oder %2$s (Spalten: %3$s).', '<strong>JSON</strong>', '<strong>CSV</strong>', '<code>url,slug,group,title,expires</code>') ?>
+  <?= t('Ohne Häkchen werden alle bestehenden Einträge %s.', '<strong>' . t('ersetzt') . '</strong>') ?>
+  <?= t('Klick-Zähler und Papierkorb sind nur im Voll-Backup enthalten.') ?></p>
 </details>
 
 <?php if ($hashEditable): ?>
