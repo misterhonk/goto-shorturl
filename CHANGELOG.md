@@ -5,6 +5,8 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+## [1.3.1] – 2026-10-22
+
 ### Sicherheit
 - **Zähler und Sperren werden jetzt unter Dateisperre fortgeschrieben.** Bisher
   liefen Lesen und Zurückschreiben getrennt (`load_json()` … `save_json()`):
@@ -462,7 +464,8 @@ Screenshot; README/QUICKSTART auf den aktuellen Stand gebracht.
   Drag & Drop, Live-Suche sowie Import/Export.
 - Datenbanklos – alle Daten in JSON-Dateien.
 
-[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/misterhonk/goto-shorturl/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/misterhonk/goto-shorturl/compare/v1.2.2...v1.3.0
 [1.2.2]: https://github.com/misterhonk/goto-shorturl/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/misterhonk/goto-shorturl/compare/v1.2.0...v1.2.1
