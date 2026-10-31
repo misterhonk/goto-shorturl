@@ -133,6 +133,18 @@ Es wird **keine Datenbank** benötigt — alle Daten liegen in JSON-Dateien.
    `urls.example.json` dort in `urls.json` umbenennen.
    *(Ohne `deploy.sh` geht es auch manuell – dann unbedingt `lib.php` und den
    Ordner `assets/` mit hochladen.)*
+
+   **Mit SSH-Zugang** (z. B. Uberspace) lädt `deploy.sh` direkt hoch:
+   ```bash
+   ./deploy.sh user@host:/pfad/zum/goto-ordner https://example.org/goto/
+   ```
+   Die Dateien landen zuerst versteckt im Zielordner, werden mit dem PHP des
+   Servers geprüft und erst dann ausgetauscht – bei einem Fehler bleibt alles,
+   wie es war. Vorher sichert das Skript den Ordner samt Daten nach
+   `~/goto-backups/` (die letzten 5 je Ordner bleiben; der Befehl zum
+   Zurückspielen steht in der Ausgabe). Mit der URL prüft es danach von außen,
+   ob das Admin antwortet und `urls.json` gesperrt ist. `config.php` und die
+   Daten werden nie überschrieben.
 3. Sicherstellen, dass der Zielordner für den Webserver **beschreibbar** ist
    (für `urls.json`, `clicks.json` usw.):
    ```bash
