@@ -5,6 +5,18 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+### Hinzugefügt
+- **`deploy.sh` lädt per SSH direkt auf den Server:**
+  `./deploy.sh user@host:/pfad [URL]`. Die Dateien landen zuerst als versteckte
+  `.<name>.deploy`-Dateien im Zielordner (von allen Server-Configs gesperrt),
+  werden mit dem PHP des Servers gelintet und erst dann umbenannt – Besucher
+  sehen nie eine halbe Version, ein Syntaxfehler bricht ab, ohne etwas zu
+  ändern. Vorher wird der Ordner samt Daten nach `~/goto-backups/` gesichert
+  (je Zielordner die letzten 5). Mit URL prüft das Skript danach von außen
+  das Admin und die Sperre von `urls.json`. `config.php` und Daten werden nie
+  überschrieben; bisherige Aufrufe (`dist/`, eingehängter Ordner) bleiben
+  unverändert.
+
 ## [1.3.3] – 2026-10-31
 
 ### Sicherheit
