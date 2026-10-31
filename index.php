@@ -114,12 +114,9 @@ function merge_query(string $target): string {
 }
 
 // Aufruf zählen (reiner Zähler, datensparsam). $source = optionaler Quellen-Marker (?gq=…)
+// Unter derselben Sperre wie alle Admin-/API-Schreibzugriffe auf clicks.json.
 function count_click(string $slug, string $source = ''): void {
-    $fp = @fopen(CLICKS_FILE, 'c+');
-    if ($fp && flock($fp, LOCK_EX)) {
-        $cur    = stream_get_contents($fp);
-        $clicks = $cur ? json_decode($cur, true) : [];
-        if (!is_array($clicks)) $clicks = [];
+    with_locked_json(CLICKS_FILE, function (array $clicks) use ($slug, $source) {
         // Format: { slug: { t: gesamt, d: { "YYYY-MM-DD": n }, s: { quelle: n } } }  (Alt-Format int wird migriert)
         $rec = $clicks[$slug] ?? null;
         if (!is_array($rec)) $rec = ['t' => (int) ($rec ?? 0), 'd' => []];
@@ -143,13 +140,8 @@ function count_click(string $slug, string $source = ''): void {
             $rec['s'] = $s;
         }
         $clicks[$slug] = $rec;
-        rewind($fp);
-        ftruncate($fp, 0);
-        fwrite($fp, json_encode($clicks, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-        fflush($fp);
-        flock($fp, LOCK_UN);
-    }
-    if ($fp) fclose($fp);
+        return $clicks;
+    });
 }
 
 if ($target !== null && !$isPreviewBot && !$protected && !$linkPrev) {
@@ -164,16 +156,14 @@ if ($target !== null && !$isPreviewBot && !$protected && !$linkPrev) {
 // Sprache nur hier laden (Hot-Path der Weiterleitung oben bleibt schlank).
 // Wie admin.php: Cookie > config.php > Deutsch; Übersetzung über lang.php.
 $LANG_EN = (array) (@include __DIR__ . '/lang.php');
-$lang = 'de';
-if (in_array((string) ($_COOKIE['goto_lang'] ?? ''), ['de', 'en'], true))              $lang = (string) $_COOKIE['goto_lang'];
-elseif (is_array($cfg) && in_array((string) ($cfg['lang'] ?? ''), ['de', 'en'], true)) $lang = (string) $cfg['lang'];
+$lang    = ui_lang($cfg);
 $t = function (string $de) use ($lang, $LANG_EN): string {
     return ($lang === 'en' && isset($LANG_EN[$de])) ? $LANG_EN[$de] : $de;
 };
 $ee = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 
 $dirUrl  = rtrim(dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/')), '/') . '/';
-$baseUrl = (is_https() ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $dirUrl;
+$baseUrl = base_url();
 // Eine Nonce pro Antwort – für die CSP-Header und ein evtl. Inline-Script.
 $nonce = base64_encode(random_bytes(16));
 
@@ -250,54 +240,26 @@ if ($protected) {
     /* Passwort-Seite: Zugang erst nach richtigem Link-Passwort (bcrypt-Hash im
      * Eintrag). Brute-Force-Bremse je IP+Kürzel über .ht_attempts.json. Die
      * Ziel-URL taucht vor der Freigabe nirgends in der Antwort auf. */
-    $attFile = $dataDir . '/.ht_attempts.json';
     $attKey  = 'pw:' . hash('sha256', ($_SERVER['REMOTE_ADDR'] ?? '') . '|' . $slug);
     $err     = '';
     $now     = time();
-    $rec     = (array) (load_json($attFile)[$attKey] ?? ['count' => 0, 'until' => 0]);
+    $rec     = (array) (load_json(ATTEMPTS_FILE)[$attKey] ?? ['count' => 0, 'until' => 0]);
     $locked  = (int) ($rec['until'] ?? 0) > $now;
 
-    /* Versuch reservieren: prüfen und hochzählen in EINEM Sperrvorgang.
-     * Getrennt würden gleichzeitige Rateversuche alle das Tor passieren,
-     * bevor der erste gezählt hat – die Bremse griffe zu spät.
-     * Rückgabe: 0 = erlaubt, sonst verbleibende Sperrsekunden. */
-    $attemptBegin = function () use ($attFile, $attKey, $now): int {
-        $wait = 0;
-        with_locked_json($attFile, function (array $a) use ($attKey, $now, &$wait) {
-            $r = (array) ($a[$attKey] ?? ['count' => 0, 'until' => 0]);
-            if ((int) ($r['until'] ?? 0) > $now) { $wait = (int) $r['until'] - $now; return null; }
-            foreach ($a as $k => $old) {   // abgelaufene Einträge aufräumen
-                if (($old['until'] ?? 0) < $now && ($old['count'] ?? 0) === 0) unset($a[$k]);
-            }
-            $r['count'] = (int) ($r['count'] ?? 0) + 1;
-            if ($r['count'] >= 8) $r = ['count' => 0, 'until' => $now + 900];
-            $a[$attKey] = $r;
-            if (count($a) > 2000) {
-                $a = array_filter($a, fn($x) => ($x['until'] ?? 0) >= $now);
-                $a[$attKey] = $r;
-            }
-            return $a;
-        });
-        return $wait;
-    };
-
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['linkpw'])) {
-        $wait = $attemptBegin();
+        // Dieselbe Bremse wie der Admin-Login (lib.php): 8 Versuche, dann 15 Min.
+        $wait = attempt_begin($attKey, 8, 900);
         if ($wait > 0) {
             $err = sprintf($t('Zu viele Fehlversuche. Bitte %d Min. warten.'), (int) ceil($wait / 60));
         } elseif (password_verify((string) $_POST['linkpw'], $linkPass)) {
-            with_locked_json($attFile, function (array $a) use ($attKey) {
-                if (!isset($a[$attKey])) return null;
-                unset($a[$attKey]);          // erfolgreicher Versuch zählt nicht
-                return $a;
-            });
+            clear_fails($attKey);            // erfolgreicher Versuch zählt nicht
             count_click($slug, $clickSource);
             header('Referrer-Policy: no-referrer');
             header('Location: ' . merge_query($target), true, 302);
             exit;
         } else {
             usleep(300000);
-            $left = (int) ((load_json($attFile)[$attKey]['until'] ?? 0)) - $now;
+            $left = (int) ((load_json(ATTEMPTS_FILE)[$attKey]['until'] ?? 0)) - $now;
             $err  = $left > 0
                 ? sprintf($t('Zu viele Fehlversuche. Bitte %d Min. warten.'), (int) ceil($left / 60))
                 : $t('Falsches Passwort.');

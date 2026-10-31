@@ -42,8 +42,28 @@ define('API_TOKENS_FILE', $dataDir . '/.ht_apitokens.json');
 // Reine Sperrdatei für urls.json-Schreibzyklen (bleibt leer). Name mit „.ht_",
 // damit die .htaccess-Regel für Punkt-Dateien sie ohnehin abdeckt.
 define('DATA_LOCK_FILE',  $dataDir . '/.ht_data.lock');
+define('ATTEMPTS_FILE',   $dataDir . '/.ht_attempts.json');   // Brute-Force-Bremse (Admin + Link-Passwort)
+
+// Kürzel, die nie ein Link sein dürfen: Einstiegspunkte und echte Ordner
+// (assets/, backups/) – Apache/nginx liefern dort den Ordner aus, der Link
+// käme nie bei GOTO an.
+const RESERVED_SLUGS = ['admin', 'index', 'api', 'assets', 'backups'];
 
 /* ---- HTTPS-Erkennung (inkl. Reverse-Proxy) ----------------------- */
+
+// Öffentliche Basis-Adresse des GOTO-Ordners, z. B. https://example.org/goto/
+function base_url(): string {
+    return (is_https() ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost')
+         . rtrim(dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/')), '/') . '/';
+}
+
+// Oberflächensprache: Cookie > config.php > Deutsch
+function ui_lang(array $cfg): string {
+    foreach ([(string) ($_COOKIE['goto_lang'] ?? ''), (string) ($cfg['lang'] ?? '')] as $l) {
+        if (in_array($l, ['de', 'en'], true)) return $l;
+    }
+    return 'de';
+}
 
 function is_https(): bool {
     return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
@@ -78,30 +98,24 @@ function save_json(string $file, array $data): bool {
  * ausgerechnet die Zähler, auf die Verlass sein muss – Login-Sperre,
  * API-Rate-Limit, Protokoll.
  *
- * with_locked_json() hält dieselbe Datei über den ganzen Zyklus exklusiv
- * gesperrt (dasselbe Muster, das count_click() in index.php schon nutzt).
+ * with_locked_json() hält den ganzen Zyklus exklusiv gesperrt. Die Sperre
+ * liegt auf einer eigenen Punkt-Datei (von allen Server-Configs gesperrt),
+ * geschrieben wird per save_json() – also Temp-Datei + rename. NICHT die
+ * Datei selbst leeren und neu beschreiben: Leser ohne Sperre sähen sie dann
+ * kurz leer, und ein abgebrochener Schreibvorgang (Platte voll) ließe sie
+ * dauerhaft leer – bei .ht_auth.json hieße das: Einrichtung offen für jeden.
  * $fn bekommt den aktuellen Stand und gibt den neuen zurück; null = nicht
  * schreiben. Rückgabe: true, wenn gelesen und ggf. geschrieben werden konnte. */
 function with_locked_json(string $file, callable $fn): bool {
-    $fp = @fopen($file, 'c+');
-    if (!$fp) return false;
+    $lock = @fopen(dirname($file) . '/.' . basename($file) . '.lock', 'c');
+    if (!$lock) return false;
     try {
-        if (!flock($fp, LOCK_EX)) return false;
-        $cur  = stream_get_contents($fp);
-        $data = ($cur !== '' && $cur !== false) ? json_decode($cur, true) : [];
-        if (!is_array($data)) $data = [];
-        $new = $fn($data);
-        if ($new === null) return true;                   // nichts zu ändern
-        $json = json_encode($new, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        if ($json === false) return false;
-        rewind($fp);
-        if (!ftruncate($fp, 0)) return false;
-        $ok = fwrite($fp, $json) !== false;
-        fflush($fp);
-        return $ok;
+        if (!flock($lock, LOCK_EX)) return false;
+        $new = $fn(load_json($file));
+        return $new === null || save_json($file, $new);   // null = nichts zu ändern
     } finally {
-        flock($fp, LOCK_UN);
-        fclose($fp);
+        flock($lock, LOCK_UN);
+        fclose($lock);
     }
 }
 
@@ -229,7 +243,7 @@ function random_slug(array $links): string {
     do {
         $s = '';
         for ($i = 0; $i < 6; $i++) $s .= $alphabet[random_int(0, strlen($alphabet) - 1)];
-    } while (isset($links[$s]));
+    } while (isset($links[$s]) || in_array($s, RESERVED_SLUGS, true));
     return $s;
 }
 
@@ -303,10 +317,69 @@ function save_data(array $d): bool {
     return save_json(URLS_FILE, ['groups' => array_values($d['groups'] ?? []), 'links' => $d['links'] ?? []]);
 }
 
+/* ---- Brute-Force-Bremse (Admin-Login + Link-Passwort, dateibasiert) - */
+
+/* Einen Versuch reservieren: prüfen UND hochzählen in einem Schritt, unter
+ * einer Sperre. Getrennt (erst prüfen, später zählen) passieren bei
+ * gleichzeitigen Anfragen alle das Tor, bevor die erste
+ * hochgezählt hat – gemessen 10 statt 5 erlaubter Versuche. Deshalb wird der
+ * Versuch VOR der Passwortprüfung verbucht und bei Erfolg per clear_fails()
+ * wieder zurückgenommen.
+ * Rückgabe: 0 = Versuch erlaubt, sonst verbleibende Sperrsekunden. */
+function attempt_begin(string $key, int $max, int $lockSecs): int {
+    $now  = time();
+    $wait = 0;
+    with_locked_json(ATTEMPTS_FILE, function (array $all) use ($key, $max, $lockSecs, $now, &$wait) {
+        $rec = (array) ($all[$key] ?? ['count' => 0, 'until' => 0]);
+        if ((int) ($rec['until'] ?? 0) > $now) {       // gesperrt -> nicht mitzählen
+            $wait = (int) $rec['until'] - $now;
+            return null;
+        }
+        foreach ($all as $k => $r) {                   // abgelaufene Einträge aufräumen
+            if (($r['until'] ?? 0) < $now && ($r['count'] ?? 0) === 0) unset($all[$k]);
+        }
+        $rec['count'] = (int) ($rec['count'] ?? 0) + 1;
+        if ($rec['count'] >= $max) $rec = ['count' => 0, 'until' => $now + $lockSecs];
+        $all[$key] = $rec;
+        // Schutz vor Aufblähen durch verteilte Angriffe: nur aktive Sperren behalten
+        if (count($all) > 2000) {
+            $all = array_filter($all, fn($r) => ($r['until'] ?? 0) >= $now);
+            $all[$key] = $rec;
+        }
+        return $all;
+    });
+    return $wait;
+}
+function clear_fails(string $key): void {
+    with_locked_json(ATTEMPTS_FILE, function (array $all) use ($key) {
+        unset($all[$key]);
+        return $all;
+    });
+}
+
 /* ---- Klicks & Papierkorb (Admin + API) ---------------------------- */
 
 function load_clicks(): array  { return load_json(CLICKS_FILE); }
-function save_clicks(array $c): bool { return save_json(CLICKS_FILE, $c); }
+
+// clicks.json wird nur unter Sperre geschrieben (wie count_click() im Hot-Path) –
+// sonst überschreibt ein Admin-Speichervorgang gerade eingehende Klicks.
+// Entfernt die Datensätze der Kürzel und liefert sie zurück (für den Papierkorb).
+function clicks_take(array $slugs): array {
+    $out = [];
+    with_locked_json(CLICKS_FILE, function (array $cl) use ($slugs, &$out) {
+        foreach ($slugs as $s) if (isset($cl[$s])) { $out[$s] = $cl[$s]; unset($cl[$s]); }
+        return $out ? $cl : null;
+    });
+    return $out;
+}
+function clicks_rename(string $old, string $new): void {
+    with_locked_json(CLICKS_FILE, function (array $cl) use ($old, $new) {
+        if (!isset($cl[$old])) return null;
+        $cl[$new] = $cl[$old];
+        unset($cl[$old]);
+        return $cl;
+    });
+}
 
 // Klick-Datensatz kann int (Alt-Format) oder {t:total, d:{tag:n}} sein
 function clicks_total(array $clicks, string $slug): int {

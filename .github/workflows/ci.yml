@@ -23,3 +23,6 @@ jobs:
 
       - name: QR-Encoder-Tests
         run: node tests/qr.test.js
+
+      - name: Sperr-Logik (lib.php)
+        run: php tests/lib.test.php

@@ -38,13 +38,6 @@ function respond(int $code, array $payload): void {
     exit;
 }
 
-/* ---- API-spezifische Helfer -------------------------------------- */
-
-function api_base(): string {
-    $dir = rtrim(dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/')), '/') . '/';
-    return (is_https() ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $dir;
-}
-
 /* ---- Eingabe einlesen (Formular, JSON-Body oder Query) ------------ */
 
 $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
@@ -133,7 +126,7 @@ if (($rec['scope'] ?? 'write') === 'read' && !in_array($method, ['GET', 'HEAD'],
 function link_out(string $slug, array $l, array $clicks, bool $withDays = false): array {
     $o = [
         'slug'      => $slug,
-        'short_url' => api_base() . $slug,
+        'short_url' => base_url() . $slug,
         'url'       => (string) $l['url'],
         'group'     => (string) $l['group'],
         'title'     => (string) $l['title'],
@@ -182,16 +175,14 @@ if ($method === 'DELETE') {
         respond(404, ['ok' => false, 'error' => 'not_found', 'slug' => $slug]);
     }
     // Wie im Admin: in den Papierkorb, Klick-Zähler wandert mit
-    $cl = load_clicks();
     $tr = load_trash();
     $tr[$slug]            = $data['links'][$slug];
     $tr[$slug]['deleted'] = time();
-    $tr[$slug]['clicks']  = $cl[$slug] ?? 0;
-    unset($data['links'][$slug], $cl[$slug]);
+    unset($data['links'][$slug]);
     if (!save_data($data)) {
         respond(500, ['ok' => false, 'error' => 'write_failed', 'message' => 'Could not save – check write permissions.']);
     }
-    save_clicks($cl);
+    $tr[$slug]['clicks'] = clicks_take([$slug])[$slug] ?? 0;
     save_trash($tr);
     respond(200, ['ok' => true, 'deleted' => $slug, 'trash' => true]);
 }
@@ -235,7 +226,7 @@ if ($method === 'PATCH') {
         if ($new === '') {
             respond(422, ['ok' => false, 'error' => 'invalid_slug', 'message' => 'Field "newslug" must contain a-z, 0-9 or "-".']);
         }
-        if (in_array($new, ['admin', 'index', 'api'], true)) {
+        if (in_array($new, RESERVED_SLUGS, true)) {
             respond(409, ['ok' => false, 'error' => 'reserved_slug', 'slug' => $new, 'message' => 'This slug is reserved.']);
         }
         if ($new !== $slug && isset($data['links'][$new])) {
@@ -249,8 +240,7 @@ if ($method === 'PATCH') {
         $rebuilt = [];
         foreach ($data['links'] as $k => $v) $rebuilt[$k === $slug ? $new : $k] = $k === $slug ? $l : $v;
         $data['links'] = $rebuilt;
-        $cl = load_clicks();
-        if (isset($cl[$slug])) { $cl[$new] = $cl[$slug]; unset($cl[$slug]); save_clicks($cl); }
+        clicks_rename($slug, $new);
     }
     if (!save_data($data)) {
         respond(500, ['ok' => false, 'error' => 'write_failed', 'message' => 'Could not save – check write permissions.']);
@@ -278,7 +268,7 @@ if (!valid_url($url)) {
 }
 
 if ($slug === '') $slug = random_slug($data['links']);
-if (in_array($slug, ['admin', 'index', 'api'], true)) {
+if (in_array($slug, RESERVED_SLUGS, true)) {
     respond(409, ['ok' => false, 'error' => 'reserved_slug', 'slug' => $slug, 'message' => 'This slug is reserved.']);
 }
 if (isset($data['links'][$slug])) {
@@ -303,7 +293,7 @@ if (!save_data($data)) {
 respond(201, [
     'ok'        => true,
     'slug'      => $slug,
-    'short_url' => api_base() . $slug,
+    'short_url' => base_url() . $slug,
     'url'       => $url,
     'group'     => $group,
     'title'     => $title,

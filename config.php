@@ -25,9 +25,10 @@ return [
     // ändern – ein abhanden gekommenes Cookie lässt sich so aussperren.
     'remember_skips_2fa' => true,
 
-    // Favicons der Zielseiten in der Liste anzeigen. true lädt sie von
-    // icons.duckduckgo.com (ein externer Abruf je Domain). false = aus.
-    'favicons'        => true,
+    // Favicons der Zielseiten in der Liste anzeigen. Standard aus: true lädt
+    // sie von icons.duckduckgo.com – dabei erfährt DuckDuckGo deine IP und
+    // alle Ziel-Domains (ein externer Abruf je Domain).
+    'favicons'        => false,
 
     // In der Diagnose prüfen, ob eine neuere GOTO-Version verfügbar ist.
     // true fragt beim Öffnen der Diagnose einmal api.github.com ab. false = aus.
