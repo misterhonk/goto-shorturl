@@ -12,12 +12,11 @@ declare(strict_types=1);
 require __DIR__ . '/lib.php';   // Bootstrap ($cfg, $dataDir, Konstanten) + Helfer
 
 // Nur im Admin genutzte Dateien und Optionen.
-define('ATTEMPTS_FILE', $dataDir . '/.ht_attempts.json');
 define('TOKENS_FILE',   $dataDir . '/.ht_tokens.json');
 define('AUTH_FILE',     $dataDir . '/.ht_auth.json');
 define('AUDIT_FILE',    $dataDir . '/.ht_audit.json');
 define('LINKCHECK_FILE', $dataDir . '/.ht_linkcheck.json');
-define('SHOW_FAVICONS', (bool) ($cfg['favicons'] ?? true));
+define('SHOW_FAVICONS', (bool) ($cfg['favicons'] ?? false));
 define('TITLE_FETCH',   (bool) ($cfg['title_fetch'] ?? true));
 define('UPDATE_CHECK',  (bool) ($cfg['update_check'] ?? false));
 // Dürfen „Angemeldet bleiben"-Geräte die 2FA-Abfrage überspringen? true ist
@@ -27,9 +26,7 @@ define('REMEMBER_SKIPS_2FA', (bool) ($cfg['remember_skips_2fa'] ?? true));
 
 // Sprache: Cookie > config.php > Deutsch. Übersetzung über lang.php (Fallback: Deutsch).
 $LANG_EN = (array) (@include __DIR__ . '/lang.php');
-$lang = 'de';
-if (in_array((string) ($_COOKIE['goto_lang'] ?? ''), ['de', 'en'], true))      $lang = (string) $_COOKIE['goto_lang'];
-elseif (in_array((string) ($cfg['lang'] ?? ''), ['de', 'en'], true))           $lang = (string) $cfg['lang'];
+$lang    = ui_lang($cfg);
 
 function t(string $de, ...$args): string {
     global $lang, $LANG_EN;
@@ -312,46 +309,6 @@ function remember_try(string $cookieDir, bool $https, string $fp): bool {
     return true;
 }
 
-/* ---- Brute-Force-Bremse (pro IP, dateibasiert) -------------------- */
-
-/* Einen Versuch reservieren: prüfen UND hochzählen in einem Schritt, unter
- * einer Sperre. Getrennt (erst prüfen, später zählen) passieren bei
- * gleichzeitigen Anfragen alle das Tor, bevor die erste
- * hochgezählt hat – gemessen 10 statt 5 erlaubter Versuche. Deshalb wird der
- * Versuch VOR der Passwortprüfung verbucht und bei Erfolg per clear_fails()
- * wieder zurückgenommen.
- * Rückgabe: 0 = Versuch erlaubt, sonst verbleibende Sperrsekunden. */
-function attempt_begin(string $key, int $max, int $lockSecs): int {
-    $now  = time();
-    $wait = 0;
-    with_locked_json(ATTEMPTS_FILE, function (array $all) use ($key, $max, $lockSecs, $now, &$wait) {
-        $rec = (array) ($all[$key] ?? ['count' => 0, 'until' => 0]);
-        if ((int) ($rec['until'] ?? 0) > $now) {       // gesperrt -> nicht mitzählen
-            $wait = (int) $rec['until'] - $now;
-            return null;
-        }
-        foreach ($all as $k => $r) {                   // abgelaufene Einträge aufräumen
-            if (($r['until'] ?? 0) < $now && ($r['count'] ?? 0) === 0) unset($all[$k]);
-        }
-        $rec['count'] = (int) ($rec['count'] ?? 0) + 1;
-        if ($rec['count'] >= $max) $rec = ['count' => 0, 'until' => $now + $lockSecs];
-        $all[$key] = $rec;
-        // Schutz vor Aufblähen durch verteilte Angriffe: nur aktive Sperren behalten
-        if (count($all) > 2000) {
-            $all = array_filter($all, fn($r) => ($r['until'] ?? 0) >= $now);
-            $all[$key] = $rec;
-        }
-        return $all;
-    });
-    return $wait;
-}
-function clear_fails(string $key): void {
-    with_locked_json(ATTEMPTS_FILE, function (array $all) use ($key) {
-        unset($all[$key]);
-        return $all;
-    });
-}
-
 /* ---------- Session (gehärtet) ------------------------------------- */
 
 $https = is_https();
@@ -406,8 +363,7 @@ $clientKey = hash('sha256', (string) ($_SERVER['REMOTE_ADDR'] ?? 'cli'));
 $flashMsg  = $_SESSION['flash'] ?? null;
 unset($_SESSION['flash']);
 
-$base = ($https ? 'https' : 'http') . '://'
-      . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $cookieDir;
+$base = base_url();
 
 /* ---------- Layout ------------------------------------------------- */
 
@@ -611,7 +567,7 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
         </tr>
         <?php else: ?>
         <tr draggable="true" data-slug="<?= e($slug) ?>" data-search="<?= e($hay) ?>" data-created="<?= (int) $l['created'] ?>" data-clicks="<?= clicks_total($clicks, $slug) ?>" data-expired="<?= is_expired($l['expires']) ? '1' : '0' ?>">
-          <td class="cbcell"><input class="rowchk" type="checkbox" name="slugs[]" value="<?= e($slug) ?>" form="bulk"></td>
+          <td class="cbcell"><input class="rowchk" type="checkbox" name="slugs[]" value="<?= e($slug) ?>" form="bulk" aria-label="<?= e(t('„%s“ auswählen', $slug)) ?>"></td>
           <td>
             <div class="linkcell">
               <?php if (SHOW_FAVICONS && $host !== ''): ?><img class="fav" src="https://icons.duckduckgo.com/ip3/<?= e($host) ?>.ico" alt="" width="16" height="16"><?php endif; ?>
@@ -622,13 +578,13 @@ function render_table(array $rows, string $base, string $self, string $csrf, ?st
             </div>
           </td>
           <td class="target" title="<?= e($url) ?>"><?= e($url) ?><?php if (link_dead($GLOBALS['linkcheck'][$slug] ?? null)): ?><span class="chip chip--exp" title="<?= t('Ziel nicht erreichbar (letzte Prüfung)') ?>"><?= icon('x') ?><?= t('toter Link') ?></span><?php endif; ?><?php if (($l['pass'] ?? '') !== ''): ?><span class="chip chip--lock" title="<?= t('passwortgeschützt') ?>"><?= icon('lock') ?></span><?php endif; ?><?php if (!empty($l['preview'])): ?><span class="chip chip--lock" title="<?= t('Vorschau-Seite aktiv') ?>"><?= icon('eye') ?></span><?php endif; ?><?php if (!empty($l['alts']) && is_array($l['alts'])): ?><span class="chip chip--date" title="<?= t('Rotation: Ziel wird bei jedem Aufruf gewählt') ?>"><?= icon('qr') ?><?= t('Rotation') ?> <?= count($l['alts']) + 1 ?></span><?php endif; ?><?php if (is_pending((string) ($l['starts'] ?? ''))): ?><span class="chip chip--date" title="<?= t('Wird erst ab diesem Tag aktiv') ?>"><?= icon('calendar') ?><?= t('ab') ?> <?= e((string) $l['starts']) ?></span><?php endif; ?><?php if ($l['expires'] !== ''): ?><span class="chip <?= is_expired($l['expires']) ? 'chip--exp' : 'chip--date' ?>"><?= icon('calendar') ?><?= is_expired($l['expires']) ? t('abgelaufen') : e($l['expires']) ?></span><?php endif; ?></td>
-          <td class="clickcell"><button type="button" class="clicks" data-slug="<?= e($slug) ?>" data-total="<?= clicks_total($clicks, $slug) ?>" data-days="<?= e(json_encode(clicks_days($clicks, $slug), JSON_FORCE_OBJECT)) ?>" data-src="<?= e(json_encode((object) clicks_sources($clicks, $slug), JSON_FORCE_OBJECT)) ?>" title="<?= t('Klick-Verlauf anzeigen') ?>" aria-label="<?= t('Klick-Verlauf anzeigen') ?>"><?php $spark = sparkline_svg(clicks_days($clicks, $slug)); echo $spark ?: icon('bars'); ?><?= clicks_total($clicks, $slug) ?></button></td>
+          <td class="clickcell"><button type="button" class="clicks" data-slug="<?= e($slug) ?>" data-total="<?= clicks_total($clicks, $slug) ?>" title="<?= t('Klick-Verlauf anzeigen') ?>" aria-label="<?= t('Klick-Verlauf anzeigen') ?>"><?php $spark = sparkline_svg(clicks_days($clicks, $slug)); echo $spark ?: icon('bars'); ?><?= clicks_total($clicks, $slug) ?></button></td>
           <td class="movecell">
             <form method="post" class="inline">
               <input type="hidden" name="action" value="move">
               <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
               <input type="hidden" name="slug" value="<?= e($slug) ?>">
-              <select name="group" data-autosubmit><?= group_options($groups, $l['group']) ?></select>
+              <select name="group" data-autosubmit aria-label="<?= e(t('Gruppe für „%s“', $slug)) ?>"><?= group_options($groups, $l['group']) ?></select>
             </form>
           </td>
           <td class="actions">
@@ -658,7 +614,9 @@ $hashEditable = ($cfgHash === '');   // Ändern im UI nur, wenn nicht in config/
  *  1) Setup-Modus  (kein Passwort gesetzt)
  * ================================================================== */
 
-if ($passwordHash === '') {
+// Einrichtung nur, wenn es noch gar keine Auth-Datei gibt. Ist sie vorhanden,
+// aber leer/unlesbar, bleibt die Tür zu – sonst könnte jeder ein Passwort setzen.
+if ($passwordHash === '' && !is_file(AUTH_FILE)) {
     $manualHash = null;
     if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['new_password'])) {
         $pw = (string) $_POST['new_password'];
@@ -725,7 +683,7 @@ if (isset($_GET['logout'])) {
  * ================================================================== */
 
 $loggedIn  = !empty($_SESSION['auth']);
-$loginInfo = null;
+$loginInfo = $passwordHash === '' ? t('Anmeldedaten nicht lesbar – bitte .ht_auth.json im Datenordner prüfen.') : null;
 
 if ($loggedIn && time() - (int) ($_SESSION['seen'] ?? 0) > $idleTimeout) {
     $loggedIn = false;
@@ -921,6 +879,16 @@ if ($loggedIn && isset($_GET['fetchtitle'])) {
     exit;
 }
 
+// Klick-Verlauf eines Links für den Dialog. Steht nicht mehr in jeder Tabellen-
+// zeile: 90 Tageswerte je Link machten die Seite bei 500 Links ~2,8 MB groß.
+if ($loggedIn && isset($_GET['clickdata'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    $cs = clean_slug(req_str($_GET['clickdata']));
+    $cl = load_clicks();
+    echo json_encode(['days' => (object) clicks_days($cl, $cs), 'src' => (object) clicks_sources($cl, $cs)]);
+    exit;
+}
+
 /* ================================================================== *
  *  5) Export  (GET, nur eingeloggt)
  * ================================================================== */
@@ -1005,7 +973,7 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
             flash(t('Bitte eine gültige http(s)-URL angeben.'));
         } else {
             if ($slug === '') $slug = random_slug($data['links']);
-            if (in_array($slug, ['admin', 'index', 'api'], true)) {
+            if (in_array($slug, RESERVED_SLUGS, true)) {
                 flash(t('„%s“ ist reserviert – bitte ein anderes Kürzel wählen.', $slug));
             } elseif (isset($data['links'][$slug])) {
                 flash(t('Kürzel „%s“ existiert bereits.', $slug));
@@ -1024,7 +992,7 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
         if (!isset($data['links'][$slug]))                    flash(t('Unbekanntes Kürzel.'));
         elseif (!valid_url($url))                             flash(t('Bitte eine gültige Ziel-URL angeben.'));
         elseif ($newslug === '')                              flash(t('Bitte eine Short-URL angeben.'));
-        elseif (in_array($newslug, ['admin', 'index', 'api'], true)) flash(t('„%s“ ist reserviert.', $newslug));
+        elseif (in_array($newslug, RESERVED_SLUGS, true)) flash(t('„%s“ ist reserviert.', $newslug));
         elseif ($newslug !== $slug && isset($data['links'][$newslug])) flash(t('„%s“ ist bereits vergeben.', $newslug));
         else {
             $entry = $data['links'][$slug];
@@ -1046,8 +1014,7 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
                 foreach ($data['links'] as $k => $v) $rebuilt[$k === $slug ? $newslug : $k] = $k === $slug ? $entry : $v;
                 $data['links'] = $rebuilt;
                 // Klickzähler mit umziehen
-                $cl = load_clicks();
-                if (isset($cl[$slug])) { $cl[$newslug] = $cl[$slug]; unset($cl[$slug]); save_clicks($cl); }
+                clicks_rename($slug, $newslug);
             }
             save_data($data) ? flash(t('„%s“ aktualisiert.', $newslug) . $altsNote, 'success')
                              : flash(t('Konnte nicht speichern.'));
@@ -1060,12 +1027,12 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
         }
     } elseif ($action === 'delete') {
         if (isset($data['links'][$slug])) {
-            $cl = load_clicks(); $tr = load_trash();
+            $tr = load_trash();
             $tr[$slug] = $data['links'][$slug];
             $tr[$slug]['deleted'] = time();
-            $tr[$slug]['clicks']  = $cl[$slug] ?? 0;
-            unset($data['links'][$slug], $cl[$slug]);
-            save_data($data); save_clicks($cl); save_trash($tr);
+            $tr[$slug]['clicks']  = clicks_take([$slug])[$slug] ?? 0;
+            unset($data['links'][$slug]);
+            save_data($data); save_trash($tr);
             flash(t('„%s“ in den Papierkorb verschoben.', $slug), 'success');
         }
     } elseif ($action === 'bulk') {
@@ -1079,17 +1046,17 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
             save_data($data);
             flash(t('%d Link(s) verschoben.', count($slugs)), 'success');
         } elseif ($op === 'delete') {
-            $cl = load_clicks(); $tr = load_trash();
+            $tr = load_trash(); $cl = clicks_take($slugs);
             foreach ($slugs as $s) {
                 $tr[$s] = $data['links'][$s];
                 $tr[$s]['deleted'] = time();
                 $tr[$s]['clicks']  = $cl[$s] ?? 0;
-                unset($data['links'][$s], $cl[$s]);
+                unset($data['links'][$s]);
             }
-            save_data($data); save_clicks($cl); save_trash($tr);
+            save_data($data); save_trash($tr);
             flash(t('%d Link(s) in den Papierkorb verschoben.', count($slugs)), 'success');
         } elseif ($op === 'reset') {
-            $cl = load_clicks(); foreach ($slugs as $s) unset($cl[$s]); save_clicks($cl);
+            clicks_take($slugs);
             flash(t('Zähler von %d Link(s) zurückgesetzt.', count($slugs)), 'success');
         }
     } elseif ($action === 'group_add') {
@@ -1132,7 +1099,7 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
                 // Voll-Backup: Links + Klicks + Papierkorb komplett ersetzen
                 $bd = normalize_data($parsed['data'] ?? []);
                 save_data($bd);
-                save_clicks(is_array($parsed['clicks'] ?? null) ? $parsed['clicks'] : []);
+                with_locked_json(CLICKS_FILE, fn() => is_array($parsed['clicks'] ?? null) ? $parsed['clicks'] : []);
                 save_trash(is_array($parsed['trash'] ?? null) ? $parsed['trash'] : []);
                 flash(t('Voll-Backup wiederhergestellt (%d Link(s)).', count($bd['links'])), 'success');
                 redirect($self);
@@ -1187,7 +1154,7 @@ if ($loggedIn && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['
                 'alts' => normalize_alts($it['alts'] ?? [])];
             $clrec = $it['clicks'] ?? 0;
             unset($tr[$slug]);
-            $cl = load_clicks(); if ($clrec) $cl[$slug] = $clrec; save_clicks($cl);
+            if ($clrec) with_locked_json(CLICKS_FILE, function (array $cl) use ($slug, $clrec) { $cl[$slug] = $clrec; return $cl; });
             save_data($data); save_trash($tr);
             flash(t('„%s“ wiederhergestellt.', $slug), 'success');
         }
@@ -1768,7 +1735,7 @@ foreach ($links as $s => $l) { $k = $normUrl((string) $l['url']); if ($k !== '' 
     <span class="field-hint"><?= t('Gilt für ZIP und Etikettenbogen – leer lassen für QR-Codes ohne Quellen-Marker.') ?></span>
   </p>
   <?php endif; ?>
-  <form class="bar" method="post" enctype="multipart/form-data" autocomplete="off">
+  <form class="bar" method="post" enctype="multipart/form-data" autocomplete="off" data-confirm="<?= e(t('Import starten? Ohne „mit Bestand zusammenführen“ werden alle bestehenden Links ersetzt.')) ?>">
     <input type="hidden" name="action" value="import">
     <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
     <input type="file" name="file" accept="application/json,.json,text/csv,.csv" required>

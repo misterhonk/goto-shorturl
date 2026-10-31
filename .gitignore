@@ -20,5 +20,5 @@ test.env
 .DS_Store
 dist/
 
-# Laufzeit-Sperrdatei
-.ht_data.lock
+# Laufzeit-Sperrdateien (.ht_data.lock, .clicks.json.lock, ..ht_auth.json.lock …)
+.*.lock

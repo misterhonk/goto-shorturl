@@ -159,7 +159,7 @@ return [
     'idle_timeout'    => 1800,    // Auto-Logout nach Inaktivität (Sekunden)
     'max_attempts'    => 5,       // Login-Fehlversuche bis zur Sperre
     'lockout_seconds' => 900,     // Sperrdauer nach zu vielen Versuchen
-    'favicons'        => true,    // Ziel-Favicons anzeigen (externer Abruf)
+    'favicons'        => false,   // Ziel-Favicons anzeigen (externer Abruf bei DuckDuckGo)
     'update_check'    => false,   // Diagnose fragt api.github.com nach Updates
     'title_fetch'     => true,    // „Titel holen"-Knopf (ausgehender Request)
     'data_dir'        => __DIR__, // Speicherort der Datendateien

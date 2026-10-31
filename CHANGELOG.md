@@ -5,6 +5,63 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+### Sicherheit
+- **Auth-Datei konnte leer gelesen werden – dann stand die Einrichtung jedem
+  offen.** Der in 1.3.1 eingeführte Schreibweg `with_locked_json()` leerte die
+  Datei zuerst und schrieb sie dann neu. Wer genau dazwischen `/admin` aufrief,
+  bekam statt der Anmeldung das Formular „Passwort festlegen“; im Test sahen
+  8.832 von 1,19 Millionen ungesperrten Lesevorgängen eine leere Datei. Brach
+  der Schreibvorgang ab (Platte voll, Quota), blieb die Datei dauerhaft leer –
+  nachgestellt: 0 Byte. Betroffen: 1.3.1 und 1.3.2.
+
+  Jetzt liegt die Sperre auf einer eigenen Punkt-Datei (`.<name>.lock`, von
+  `.htaccess`, nginx- und Caddy-Beispiel gesperrt), geschrieben wird wieder
+  atomar über `save_json()` (Temp-Datei + `rename`). Zusätzlich erscheint die
+  Einrichtung nur noch, wenn `.ht_auth.json` gar nicht existiert; eine
+  vorhandene, aber leere oder kaputte Datei sperrt den Zugang und zeigt einen
+  Hinweis, statt die Tür zu öffnen.
+
+### Behoben
+- **Links mit den Kürzeln `assets` oder `backups` funktionierten nie.** Apache
+  und nginx liefern unter diesen Pfaden die echten Ordner aus, der Link kam nie
+  bei GOTO an. Die Liste reservierter Kürzel steht jetzt einmal in `lib.php`
+  (`RESERVED_SLUGS`) statt viermal im Code und kennt beide Ordner; auch
+  Zufallskürzel können sie nicht mehr treffen.
+- **Klicks gingen verloren, wenn im Admin gleichzeitig gespeichert wurde**
+  (Löschen, Umbenennen, Wiederherstellen, Zähler zurücksetzen, Voll-Backup):
+  gemessen 273–283 von 300 parallelen Klicks, jetzt 300 von 300. Alle
+  Schreibzugriffe auf `clicks.json` – auch die Zählung in `index.php` – laufen
+  über dieselbe Sperre (`clicks_take()`, `clicks_rename()`).
+- **Fehlende Übersetzung** für „Papierkorb geleert“ im Protokoll.
+
+### Geändert
+- **Favicons sind standardmäßig aus.** Sie kommen von `icons.duckduckgo.com`;
+  bei jedem Öffnen der Liste erfuhr DuckDuckGo die IP des Admins und alle
+  Ziel-Domains. Bestehende Installationen behalten ihre `config.php` – wer
+  dort `'favicons' => true` stehen hat, sollte es auf `false` setzen.
+- **Rückfrage vor dem Import**, weil ein Import ohne „mit Bestand
+  zusammenführen“ alle Links ersetzt.
+- **Klick-Verlauf wird erst beim Öffnen des Dialogs geladen** (`?clickdata=`)
+  statt 90 Tageswerte in jeder Tabellenzeile mitzuschicken. Bei 517 Links:
+  HTML 2.317 statt 2.840 KB, übertragen 97 statt 161 KB, fertig geladen nach
+  395 statt 2.406 ms (der größte Teil davon durch die abgeschalteten Favicons).
+- Die Weiterleitung schreibt den Klickzähler jetzt atomar: bei 511 Links
+  4,9 statt 2,8 ms je Aufruf, bei 11 Links 1,0 ms.
+
+### Barrierefreiheit
+- Zeilen-Checkboxen und das Gruppen-Menü jeder Zeile haben einen Namen für
+  Screenreader („„rickroll“ auswählen“, „Gruppe für „rickroll““).
+
+### Intern
+- **Test für die Sperr-Logik** (`tests/lib.test.php`, läuft in der CI):
+  8 Prozesse zählen gleichzeitig hoch, ein Leser ohne Sperre darf dabei nie
+  eine leere oder kaputte Datei sehen. Auf dem Stand von 1.3.2 schlägt er fehl.
+- Die Fehlversuch-Sperre (`attempt_begin()`, `clear_fails()`) steht nur noch
+  einmal in `lib.php`; Admin-Login und Link-Passwort nutzen sie gemeinsam.
+- Basis-URL (`base_url()`) und Sprachwahl (`ui_lang()`) stehen einmal in
+  `lib.php` statt in jedem Einstiegspunkt; fünf verwaiste Übersetzungen und
+  `save_clicks()` entfernt.
+
 ## [1.3.2] – 2026-10-22
 
 ### Barrierefreiheit

@@ -92,7 +92,6 @@ return [
     'Klick-Zähler und Papierkorb sind nur im Voll-Backup enthalten.'
         => 'Click counts and the trash are only included in the full backup.',
     'Bearbeiten'                         => 'Edit',
-    'Aufrufe gesamt (anonym) – Verlauf der letzten 14 Tage' => 'Total clicks (anonymous) – last 14 days',
 
     // Werkzeuge
     'Export / Import'                    => 'Export / import',
@@ -177,7 +176,6 @@ return [
         => 'The password is set in config.php/ENV and cannot be changed here.',
     'Aktuelles Passwort ist falsch.'     => 'Current password is wrong.',
     'Neues Passwort: mindestens 8 Zeichen.' => 'New password: at least 8 characters.',
-    'Passwort geändert.'                 => 'Password changed.',
     'Passwort geändert. Alle „Angemeldet bleiben“-Geräte wurden abgemeldet.'
         => 'Password changed. All “stay logged in” devices have been signed out.',
     'Zu viele Fehlversuche. Bitte %d Min. warten.' => 'Too many failed attempts. Please wait %d min.',
@@ -367,8 +365,6 @@ return [
 
     // Zwei-Faktor-Authentifizierung
     'Zwei-Faktor-Authentifizierung (2FA)' => 'Two-factor authentication (2FA)',
-    '2FA ist aktiv. Beim Anmelden wird zusätzlich ein Code aus deiner Authenticator-App abgefragt. „Angemeldet bleiben“-Geräte überspringen die Abfrage.'
-        => '2FA is enabled. Signing in additionally asks for a code from your authenticator app. “Stay logged in” devices skip the prompt.',
     '2FA ist aktiv. Beim Anmelden wird zusätzlich ein Code aus deiner Authenticator-App abgefragt. „Angemeldet bleiben“-Geräte überspringen die Abfrage (abschaltbar über „remember_skips_2fa" in config.php).'
         => '2FA is enabled. Signing in additionally asks for a code from your authenticator app. “Stay logged in” devices skip the prompt (switch it off via “remember_skips_2fa” in config.php).',
     '2FA ist aktiv. Beim Anmelden wird zusätzlich ein Code aus deiner Authenticator-App abgefragt – auch auf Geräten mit „Angemeldet bleiben“.'
@@ -382,8 +378,6 @@ return [
     'Aktivieren'                         => 'Enable',
     'Kein Einrichtungsvorgang aktiv.'    => 'No setup in progress.',
     'Falscher Code.'                     => 'Wrong code.',
-    'Zwei-Faktor-Authentifizierung aktiviert.'   => 'Two-factor authentication enabled.',
-    'Zwei-Faktor-Authentifizierung deaktiviert.' => 'Two-factor authentication disabled.',
     'Zwei-Faktor-Authentifizierung aktiviert. Alle „Angemeldet bleiben“-Geräte wurden abgemeldet.'
         => 'Two-factor authentication enabled. All “stay logged in” devices have been signed out.',
     'Zwei-Faktor-Authentifizierung deaktiviert. Alle „Angemeldet bleiben“-Geräte wurden abgemeldet.'
@@ -439,4 +433,12 @@ return [
     'Noch nicht aktiv'                   => 'Not active yet',
     'Link noch nicht aktiv'              => 'Link not active yet',
     'Dieser Link ist noch nicht aktiv.'  => 'This link is not active yet.',
+    // Revision 1.3.3
+    '„%s“ auswählen'                     => 'Select “%s”',
+    'Gruppe für „%s“'                    => 'Group for “%s”',
+    'Papierkorb geleert'                 => 'Trash emptied',
+    'Anmeldedaten nicht lesbar – bitte .ht_auth.json im Datenordner prüfen.'
+        => 'Sign-in data unreadable – please check .ht_auth.json in the data folder.',
+    'Import starten? Ohne „mit Bestand zusammenführen“ werden alle bestehenden Links ersetzt.'
+        => 'Start import? Without “merge with existing”, all existing links are replaced.',
 ];

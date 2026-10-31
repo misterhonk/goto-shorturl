@@ -356,17 +356,28 @@
       });
       cSrcWrap.hidden=false;
     }
-    document.querySelectorAll('button[data-days]').forEach(function(b){
+    var cCur=null;
+    function showClicks(b,days,src){
+      cDays=(days&&!Array.isArray(days))?days:{};
+      cTitle.textContent=cLabel+': '+(b.getAttribute('data-slug')||'');
+      cTotal.textContent=b.getAttribute('data-total')||'0';
+      cToday.textContent=String(cDays[isoLocal(new Date())]||0);
+      if(!cdlg.open){ if(cdlg.showModal) cdlg.showModal(); else cdlg.setAttribute('open',''); }
+      renderChart(); renderSources((src&&!Array.isArray(src))?src:{});
+    }
+    // Gesamt-Kachel trägt ihre Daten selbst (data-days); Zeilen laden sie beim Öffnen nach
+    document.querySelectorAll('button[data-days], button.clicks[data-slug]').forEach(function(b){
       b.addEventListener('click',function(){
-        try{ cDays=JSON.parse(b.getAttribute('data-days'))||{}; }catch(_){ cDays={}; }
-        if(Array.isArray(cDays)) cDays={};
-        var cSrc={}; try{ cSrc=JSON.parse(b.getAttribute('data-src')||'{}')||{}; }catch(_){ cSrc={}; }
-        if(Array.isArray(cSrc)) cSrc={};
-        cTitle.textContent=cLabel+': '+(b.getAttribute('data-slug')||'');
-        cTotal.textContent=b.getAttribute('data-total')||'0';
-        cToday.textContent=String(cDays[isoLocal(new Date())]||0);
-        if(cdlg.showModal) cdlg.showModal(); else cdlg.setAttribute('open','');
-        renderChart(); renderSources(cSrc);
+        cCur=b;
+        if(b.hasAttribute('data-days')){
+          var d={},s={}; try{ d=JSON.parse(b.getAttribute('data-days')); s=JSON.parse(b.getAttribute('data-src')||'{}'); }catch(_){}
+          showClicks(b,d,s); return;
+        }
+        showClicks(b,{},{});
+        fetch('?clickdata='+encodeURIComponent(b.getAttribute('data-slug')),{cache:'no-store'})
+          .then(function(r){ return r.json(); })
+          .then(function(j){ if(cdlg.open&&cCur===b) showClicks(b,j.days,j.src); })   // nur, wenn noch derselbe Link offen ist
+          .catch(function(){});
       });
     });
     cSeg.querySelectorAll('button').forEach(function(b){
