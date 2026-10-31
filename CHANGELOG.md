@@ -5,6 +5,8 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
 
 ## [Unreleased]
 
+## [1.3.3] – 2026-10-31
+
 ### Sicherheit
 - **Auth-Datei konnte leer gelesen werden – dann stand die Einrichtung jedem
   offen.** Der in 1.3.1 eingeführte Schreibweg `with_locked_json()` leerte die
@@ -549,7 +551,8 @@ Screenshot; README/QUICKSTART auf den aktuellen Stand gebracht.
   Drag & Drop, Live-Suche sowie Import/Export.
 - Datenbanklos – alle Daten in JSON-Dateien.
 
-[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v1.3.2...HEAD
+[Unreleased]: https://github.com/misterhonk/goto-shorturl/compare/v1.3.3...HEAD
+[1.3.3]: https://github.com/misterhonk/goto-shorturl/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/misterhonk/goto-shorturl/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/misterhonk/goto-shorturl/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/misterhonk/goto-shorturl/compare/v1.2.2...v1.3.0
