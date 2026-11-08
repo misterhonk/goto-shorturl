@@ -23,6 +23,7 @@ declare(strict_types=1);
 const GOTO_VERSION = '1.3.3';
 
 @ini_set('display_errors', '0');   // Produktion: keine PHP-Fehler an Besucher ausgeben
+header_remove('X-Powered-By');     // PHP-Version nicht verraten
 
 $cfg = @include __DIR__ . '/config.php';
 if (!is_array($cfg)) $cfg = [];
@@ -142,6 +143,46 @@ function valid_url(string $url): bool {
     if (!filter_var($url, FILTER_VALIDATE_URL)) return false;
     $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
     return in_array($scheme, ['http', 'https'], true);
+}
+
+// SSRF-Schutz: nur öffentliche Adressen. PHPs NO_PRIV/NO_RES-Flags lassen
+// CGNAT, Benchmark-Netz, IETF-Protokoll-Netz, NAT64, ULA/Link-local und
+// IPv4-gemappte IPv6-Adressen teils durch – deshalb die Zusatzliste.
+function ip_is_public(string $ip): bool {
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) return false;
+    $bin = (string) inet_pton($ip);
+    if (strlen($bin) === 16 && strncmp($bin, str_repeat("\0", 10) . "\xff\xff", 12) === 0) {
+        return ip_is_public((string) inet_ntop(substr($bin, 12)));   // ::ffff:a.b.c.d
+    }
+    foreach (['0.0.0.0/8', '100.64.0.0/10', '192.0.0.0/24', '198.18.0.0/15',
+              'fc00::/7', 'fe80::/10', '64:ff9b::/96', '2001:db8::/32'] as $cidr) {
+        [$net, $bits] = explode('/', $cidr);
+        $n = (string) inet_pton($net);
+        if (strlen($n) !== strlen($bin)) continue;
+        $bytes = intdiv((int) $bits, 8); $rem = (int) $bits % 8;
+        if (strncmp($bin, $n, $bytes) !== 0) continue;
+        if ($rem && ((ord($bin[$bytes]) ^ ord($n[$bytes])) & (0xFF << (8 - $rem)) & 0xFF)) continue;
+        return false;
+    }
+    return true;
+}
+
+// Löst A- UND AAAA-Records auf; nur wenn ALLE öffentlich sind, kommt eine
+// IP zurück (IPv4 bevorzugt) – zum Festpinnen der Verbindung. Sonst null.
+function resolve_public_ip(string $host): ?string {
+    $host = trim($host, '[]');
+    if ($host === '') return null;
+    if (filter_var($host, FILTER_VALIDATE_IP)) return ip_is_public($host) ? $host : null;
+    $v4 = []; $v6 = [];
+    foreach ((@dns_get_record($host, DNS_A | DNS_AAAA)) ?: [] as $r) {
+        if (isset($r['ip']))   $v4[] = $r['ip'];
+        if (isset($r['ipv6'])) $v6[] = $r['ipv6'];
+    }
+    if (!$v4 && !$v6) $v4 = @gethostbynamel($host) ?: [];
+    $all = array_merge($v4, $v6);
+    if (!$all) return null;                     // nicht auflösbar -> ablehnen
+    foreach ($all as $ip) if (!ip_is_public($ip)) return null;
+    return $all[0];
 }
 
 function clean_slug(string $s): string {
@@ -360,6 +401,18 @@ function clear_fails(string $key): void {
 /* ---- Klicks & Papierkorb (Admin + API) ---------------------------- */
 
 function load_clicks(): array  { return load_json(CLICKS_FILE); }
+
+// Aufrufe, die kein Mensch ausgelöst hat (HEAD, Prefetch, Crawler, Link-Scanner,
+// Skripte) – werden weitergeleitet, aber nicht gezählt. Nur UA/Methode/Header, nichts gespeichert.
+function is_nonhuman_request(array $server): bool {
+    if (strtoupper((string) ($server['REQUEST_METHOD'] ?? 'GET')) === 'HEAD') return true;
+    foreach (['HTTP_SEC_PURPOSE', 'HTTP_PURPOSE', 'HTTP_X_PURPOSE', 'HTTP_X_MOZ'] as $h) {
+        if (preg_match('/prefetch|preview/i', (string) ($server[$h] ?? ''))) return true;
+    }
+    $ua = trim((string) ($server['HTTP_USER_AGENT'] ?? ''));
+    return $ua === '' || preg_match('~bot|crawl|spider|slurp|preview|scan|monitor|curl|wget|python-|go-http|java/'
+        . '|okhttp|httpclient|axios|node-fetch|headless|phantom|lighthouse|safelinks|proofpoint|mimecast|barracuda~i', $ua) === 1;
+}
 
 // clicks.json wird nur unter Sperre geschrieben (wie count_click() im Hot-Path) –
 // sonst überschreibt ein Admin-Speichervorgang gerade eingehende Klicks.

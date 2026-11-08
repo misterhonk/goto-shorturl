@@ -348,6 +348,7 @@ header('X-Frame-Options: DENY');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: no-referrer');
 header('X-Robots-Tag: noindex, nofollow');
+header('Permissions-Policy: camera=(self), microphone=(), geolocation=()');   // Kamera: QR-Scan
 if ($https) header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
 $imgSrc  = "img-src 'self' data: blob:" . (SHOW_FAVICONS ? ' https://icons.duckduckgo.com' : '');
 // connect-src wird u. a. für die Diagnose-fetch-Checks benötigt; der
@@ -775,30 +776,28 @@ if (!$loggedIn && !empty($_SESSION['totp_pending'])
  *  4b) Titel von der Zielseite holen  (GET, nur eingeloggt, opt-in)
  * ================================================================== */
 
-// SSRF-Schutz: nur öffentlich erreichbare Hosts. Private/lokale/reservierte
-// IP-Bereiche werden abgelehnt (keine internen Netze abfragbar).
-function host_is_public(string $host): bool {
-    if ($host === '') return false;
-    if (filter_var($host, FILTER_VALIDATE_IP)) {
-        return (bool) filter_var($host, FILTER_VALIDATE_IP,
-            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
-    }
-    $ips = @gethostbynamel($host);
-    if (!$ips) return false;                    // nicht auflösbar -> ablehnen
-    foreach ($ips as $ip) {
-        if (!filter_var($ip, FILTER_VALIDATE_IP,
-            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) return false;
-    }
-    return true;
+// SSRF-Schutz: curl verbindet nur zur vorab geprüften öffentlichen IP
+// (resolve_public_ip in lib.php) – ein zweiter DNS-Lookup (Rebinding) kann
+// nicht mehr auf ein internes Netz umlenken. Nur http/https.
+function curl_pin_opts(string $url, string $ip): array {
+    $p    = parse_url($url);
+    $port = (int) ($p['port'] ?? (strtolower((string) ($p['scheme'] ?? '')) === 'https' ? 443 : 80));
+    $addr = str_contains($ip, ':') ? "[$ip]" : $ip;
+    return [
+        CURLOPT_RESOLVE        => [trim((string) ($p['host'] ?? ''), '[]') . ":$port:$addr"],
+        CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+        CURLOPT_FOLLOWLOCATION => false,   // Redirect-Ziele wären ungeprüft (SSRF-Umgehung)
+    ];
 }
 
 function fetch_page_title(string $url): ?string {
     if (!valid_url($url)) return null;
-    if (!host_is_public((string) parse_url($url, PHP_URL_HOST))) return null;
+    $ip = resolve_public_ip((string) parse_url($url, PHP_URL_HOST));
+    if ($ip === null) return null;
     $html = '';
     if (function_exists('curl_init')) {
         $ch = curl_init($url);
-        curl_setopt_array($ch, [
+        curl_setopt_array($ch, curl_pin_opts($url, $ip) + [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => false,   // keine Redirects (SSRF-Umgehung vermeiden)
             CURLOPT_TIMEOUT        => 5,
@@ -840,11 +839,13 @@ function check_links(array $links): array {
         $urls = array_merge([(string) ($l['url'] ?? '')],
                             array_column(normalize_alts($l['alts'] ?? []), 'url'));
         foreach ($urls as $i => $url) {
-            $host = (string) parse_url($url, PHP_URL_HOST);
-            if (!host_is_public($host)) { $codes[$slug][] = -1; continue; }
+            $ip = resolve_public_ip((string) parse_url($url, PHP_URL_HOST));
+            if ($ip === null) { $codes[$slug][] = -1; continue; }
             $ch = curl_init($url);
-            curl_setopt_array($ch, [
-                CURLOPT_NOBODY => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 4,
+            // Kein Folgen von Redirects: 3xx gilt als „lebt“ (link_dead).
+            // shortcut: Ziel hinter einer Weiterleitung wird nicht geprüft – erweitern, falls tote Ketten auffallen
+            curl_setopt_array($ch, curl_pin_opts($url, $ip) + [
+                CURLOPT_NOBODY => true,
                 CURLOPT_TIMEOUT => 8, CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_USERAGENT => 'GOTO-LinkCheck/1.0',
             ]);
