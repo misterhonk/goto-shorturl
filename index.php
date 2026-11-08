@@ -30,6 +30,8 @@ if ($slug === '') {
     $seg  = rawurldecode(basename($path));
     if ($seg !== '' && $seg !== 'index.php') $slug = $seg;
 }
+// Kürzel werden klein gespeichert (clean_slug) – abgetippte „goto/Flyer“ sollen trotzdem treffen
+$slug = strtolower($slug);
 
 $target    = null;
 $expired   = false;
@@ -116,6 +118,7 @@ function merge_query(string $target): string {
 // Aufruf zählen (reiner Zähler, datensparsam). $source = optionaler Quellen-Marker (?gq=…)
 // Unter derselben Sperre wie alle Admin-/API-Schreibzugriffe auf clicks.json.
 function count_click(string $slug, string $source = ''): void {
+    if (is_nonhuman_request($_SERVER)) return;
     with_locked_json(CLICKS_FILE, function (array $clicks) use ($slug, $source) {
         // Format: { slug: { t: gesamt, d: { "YYYY-MM-DD": n }, s: { quelle: n } } }  (Alt-Format int wird migriert)
         $rec = $clicks[$slug] ?? null;
@@ -178,6 +181,7 @@ function goto_page(string $lang, string $dirUrl, string $title, string $extraHea
     header('X-Content-Type-Options: nosniff');
     header('Referrer-Policy: no-referrer');
     header('X-Robots-Tag: noindex, nofollow');
+    header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
     if (is_https()) header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
     header(
         "Content-Security-Policy: default-src 'none'; img-src 'self' data:; "
@@ -254,8 +258,14 @@ if ($protected) {
         } elseif (password_verify((string) $_POST['linkpw'], $linkPass)) {
             clear_fails($attKey);            // erfolgreicher Versuch zählt nicht
             count_click($slug, $clickSource);
-            header('Referrer-Policy: no-referrer');
-            header('Location: ' . merge_query($target), true, 302);
+            // Kein 302: die CSP „form-action 'self'“ gilt auch für Weiterleitungen
+            // nach einem Formular – Browser würden den Sprung aufs fremde Ziel
+            // blockieren. Meta-Refresh ist eine normale Navigation.
+            $dest = merge_query($target);
+            goto_page($lang, $dirUrl, $linkTitle !== '' ? $linkTitle : 'GOTO',
+                '<meta http-equiv="refresh" content="0;url=' . $ee($dest) . '">' . "\n",
+                '<p><a class="btn" href="' . $ee($dest) . '">' . $ee($t('Weiter zur Zielseite')) . '</a></p>',
+                $nonce);
             exit;
         } else {
             usleep(300000);

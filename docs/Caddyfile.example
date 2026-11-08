@@ -15,7 +15,8 @@ deine-domain.de {
 
     # Sensible Dateien niemals ausliefern (Datendateien, Dotfiles auch in
     # Unterordnern wie backups/, config.php)
-    @gesperrt path_regexp ^/goto/((.*/)?\.[^/]*|.*\.(json|md|bak|tmp)|config\.php)$
+    # (?i): auch URLS.JSON, CONFIG.PHP … auf case-insensitiven Dateisystemen
+    @gesperrt path_regexp (?i)^/goto/((.*/)?\..*|.*\.(json|md|bak|tmp|log|lock)|config\.php)$
     respond @gesperrt 404
 
     # Schöne Admin-URL: /goto/admin -> admin.php

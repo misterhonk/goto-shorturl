@@ -2,16 +2,22 @@
 
 Options -Indexes
 
-# Sensible Dateien niemals direkt ausliefern
-<FilesMatch "\.(json|md|bak|tmp)$">
+# Sensible Dateien niemals direkt ausliefern. (?i): auf Dateisystemen ohne
+# Groß-/Kleinschreibung (macOS, manche NAS/Windows-Hoster) wäre URLS.JSON
+# sonst dieselbe Datei wie urls.json – aber nicht gesperrt.
+<FilesMatch "(?i)\.(json|md|bak|tmp|log|lock)$">
     Require all denied
 </FilesMatch>
 <FilesMatch "^\.">
     Require all denied
 </FilesMatch>
-<Files "config.php">
+<FilesMatch "(?i)^config\.php$">
     Require all denied
-</Files>
+</FilesMatch>
+# Punkt-Verzeichnisse (.git/ u. a.) – FilesMatch greift nur für Dateien
+<IfModule mod_alias.c>
+    RedirectMatch 404 "/\.(?!well-known/)"
+</IfModule>
 
 # Authorization-Header (Bearer-Token) an PHP durchreichen – manche Hoster
 # (CGI/FPM) entfernen ihn sonst, dann schlägt die API-Token-Prüfung fehl.

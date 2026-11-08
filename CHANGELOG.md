@@ -17,6 +17,39 @@ Alle nennenswerten Änderungen an GOTO. Format orientiert sich an
   überschrieben; bisherige Aufrufe (`dist/`, eingehängter Ordner) bleiben
   unverändert.
 
+### Behoben
+- **Passwortgeschützte Links leiteten im Browser nicht weiter.** Nach dem
+  richtigen Passwort blieb Chrome auf der Passwort-Seite stehen: die CSP
+  `form-action 'self'` (seit 0.7.1) gilt auch für die 302-Weiterleitung nach
+  dem Absenden und blockierte den Sprung zur fremden Zielseite. Jetzt folgt
+  eine Weiterleitungsseite (Meta-Refresh + Link). Mit curl war der Fehler
+  nicht sichtbar.
+- **Kurzlinks in Großschreibung liefern kein 404 mehr.** `goto/Flyer` findet
+  jetzt `flyer` – abgetippte Links von Plakaten und manche Scanner-Apps
+  scheiterten bisher.
+- **Klickzähler zählt keine Bots mehr.** HEAD-Anfragen, Browser-Prefetch,
+  Crawler, Mail-Link-Scanner (SafeLinks, Proofpoint …) und Skripte (curl,
+  python-requests …) werden weitergeleitet, aber nicht mitgezählt. Weiterhin
+  nur Zähler – es wird nichts gespeichert.
+
+### Sicherheit
+- **Sperrregeln unabhängig von Groß-/Kleinschreibung** (`.htaccess`, nginx-
+  und Caddy-Beispiel). Auf Dateisystemen ohne Unterscheidung (macOS, manche
+  NAS-/Windows-Hoster) waren `URLS.JSON`, Backups und `CONFIG.PHP` (als
+  Quelltext!) abrufbar. Punkt-Ordner wie `.git/` sind jetzt ebenfalls gesperrt.
+- **SSRF-Schutz vervollständigt.** Der Toter-Link-Check folgte Weiterleitungen
+  ungeprüft – ein öffentliches Ziel konnte so auf interne Adressen umleiten.
+  Jetzt folgt er keinen Redirects mehr (3xx gilt als erreichbar). Titel-Abruf
+  und Linkcheck prüfen A- **und** AAAA-Records, sperren zusätzlich CGNAT,
+  NAT64, ULA/Link-local und IPv4-gemappte IPv6-Adressen und verbinden fest zur
+  geprüften IP (kein DNS-Rebinding).
+- `X-Powered-By` wird entfernt, neue `Permissions-Policy` (Kamera nur im Admin
+  für den QR-Scan).
+
+### Für Betreiber
+- Wer die nginx- oder Caddy-Beispielkonfiguration übernommen hat, sollte die
+  geänderten Sperrregeln nachziehen; `.htaccess` kommt mit dem Update.
+
 ## [1.3.3] – 2026-10-31
 
 ### Sicherheit
